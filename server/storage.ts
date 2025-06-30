@@ -78,6 +78,14 @@ export class MemStorage implements IStorage {
     const existingUser = this.users.get(userData.id);
     const user: User = {
       ...userData,
+      email: userData.email || null,
+      firstName: userData.firstName || null,
+      lastName: userData.lastName || null,
+      profileImageUrl: userData.profileImageUrl || null,
+      learningGoals: userData.learningGoals || null,
+      preferredCategories: userData.preferredCategories || null,
+      reviewFrequency: userData.reviewFrequency || null,
+      notificationSettings: userData.notificationSettings || null,
       createdAt: existingUser?.createdAt || new Date(),
       updatedAt: new Date(),
     };
@@ -100,6 +108,10 @@ export class MemStorage implements IStorage {
     const video: Video = {
       ...videoData,
       id,
+      duration: videoData.duration || null,
+      thumbnail: videoData.thumbnail || null,
+      transcript: videoData.transcript || null,
+      category: videoData.category || null,
       processedAt: new Date(),
       createdAt: new Date(),
     };
@@ -122,6 +134,8 @@ export class MemStorage implements IStorage {
       const question: Question = {
         ...questionData,
         id,
+        explanation: questionData.explanation || null,
+        difficulty: questionData.difficulty || null,
         createdAt: new Date(),
       };
       this.questions.set(id, question);
@@ -143,6 +157,10 @@ export class MemStorage implements IStorage {
     const session: QuizSession = {
       ...sessionData,
       id,
+      completedAt: sessionData.completedAt || null,
+      score: sessionData.score || null,
+      totalQuestions: sessionData.totalQuestions || null,
+      correctAnswers: sessionData.correctAnswers || null,
       startedAt: new Date(),
     };
     this.quizSessions.set(id, session);
@@ -168,6 +186,9 @@ export class MemStorage implements IStorage {
     const response: QuestionResponse = {
       ...responseData,
       id,
+      userAnswer: responseData.userAnswer || null,
+      isCorrect: responseData.isCorrect || null,
+      responseTime: responseData.responseTime || null,
       answeredAt: new Date(),
     };
     this.questionResponses.set(id, response);
@@ -183,6 +204,9 @@ export class MemStorage implements IStorage {
     const schedule: ReviewSchedule = {
       ...scheduleData,
       id,
+      interval: scheduleData.interval || null,
+      easeFactor: scheduleData.easeFactor || null,
+      repetitions: scheduleData.repetitions || null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
