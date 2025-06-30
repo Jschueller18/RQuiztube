@@ -1,0 +1,101 @@
+Executive Summary
+Develop an iOS mobile application that transforms passive YouTube video consumption into active learning through AI-generated quizzes and spaced repetition algorithms. The app analyzes users' YouTube watch history, extracts educational content, and delivers personalized review sessions to maximize knowledge retention using research-backed learning techniques.
+Business Model
+
+Revenue Strategy: Subscription model with free trial period
+Initial Market: English-language content and users
+Platform: iOS-first development approach
+
+Refined Functional Requirements
+Core Features (MVP)
+
+YouTube Authentication & Content Analysis
+
+OAuth 2.0 integration with YouTube (no data storage)
+Real-time watch history analysis
+AI-powered educational content detection
+User-defined learning preferences with guided suggestions
+
+
+Intelligent Content Processing
+
+Live transcript extraction and analysis
+AI-generated question creation using GPT-4o/Claude Sonnet
+Manual quality review process for generated questions
+Content categorization based on user learning goals
+
+
+Optimized Spaced Repetition System
+
+Research-based timing intervals (not uniform scheduling)
+Performance-adaptive algorithms
+User-configurable notification frequencies
+Optimal learning recall timing implementation
+
+
+Streamlined Quiz Interface
+
+Multiple choice and true/false questions (MVP)
+Immediate feedback with explanations
+Session progress tracking
+iOS-native design patterns
+
+
+Essential Analytics
+
+Personal learning statistics
+Retention rate tracking
+Study consistency metrics
+
+
+
+User Onboarding Flow
+
+Learning Preference Setup
+
+Free-response field: "What do you want to learn from your YouTube videos?"
+Suggested categories: Programming, Science, History, Business, etc.
+AI interprets user intent for content filtering
+
+
+Trial Period Activation
+
+7-14 day free trial with full access
+Clear subscription value proposition
+Seamless conversion flow
+
+
+
+Technical Architecture (Updated)
+Frontend
+
+Platform: iOS (Swift/SwiftUI) for native performance
+Minimum iOS Version: iOS 15+
+Architecture: MVVM with Combine framework
+Storage: No offline capabilities for MVP
+
+Backend
+
+Content Processing: Real-time, no persistent YouTube data storage
+Question Generation: GPT-4o primary, Claude Sonnet fallback
+User Data: 3-month retention policy
+Review System: Manual question quality review dashboard
+
+Privacy & Compliance
+
+Data Minimization: Process YouTube data in real-time, no storage
+Age Compliance: 18+ minimum age requirement (avoids COPPA complexity)
+Geographic Research: Investigate YouTube API restrictions by region
+
+Updated Success Criteria
+Subscription Metrics
+
+Trial Conversion Rate: >15%
+Monthly Churn Rate: <10%
+Average Revenue Per User: Target $4.99-9.99/month
+
+Learning Effectiveness
+
+Question Quality Score: >80% user satisfaction
+Knowledge Retention: >15% improvement over 30 days
+Engagement: >3 study sessions per week for active users
