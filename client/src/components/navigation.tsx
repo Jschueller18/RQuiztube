@@ -32,32 +32,26 @@ export default function Navigation() {
           </div>
           
           <div className="hidden md:flex items-center space-x-8">
-            <Link href="/">
-              <a className={`transition-colors ${
-                location === "/" 
-                  ? "text-youtube-red" 
-                  : "text-gray-700 hover:text-youtube-red"
-              }`}>
-                Dashboard
-              </a>
+            <Link href="/" className={`transition-colors ${
+              location === "/" 
+                ? "text-youtube-red" 
+                : "text-gray-700 hover:text-youtube-red"
+            }`}>
+              Dashboard
             </Link>
-            <Link href="/analytics">
-              <a className={`transition-colors ${
-                location === "/analytics" 
-                  ? "text-youtube-red" 
-                  : "text-gray-700 hover:text-youtube-red"
-              }`}>
-                Analytics
-              </a>
+            <Link href="/analytics" className={`transition-colors ${
+              location === "/analytics" 
+                ? "text-youtube-red" 
+                : "text-gray-700 hover:text-youtube-red"
+            }`}>
+              Analytics
             </Link>
-            <Link href="/settings">
-              <a className={`transition-colors ${
-                location === "/settings" 
-                  ? "text-youtube-red" 
-                  : "text-gray-700 hover:text-youtube-red"
-              }`}>
-                Settings
-              </a>
+            <Link href="/settings" className={`transition-colors ${
+              location === "/settings" 
+                ? "text-youtube-red" 
+                : "text-gray-700 hover:text-youtube-red"
+            }`}>
+              Settings
             </Link>
           </div>
           
