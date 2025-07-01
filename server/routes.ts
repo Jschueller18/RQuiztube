@@ -297,6 +297,89 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Watch history import endpoint
+  app.post('/api/import-watch-history', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { watchHistory } = req.body;
+
+      if (!Array.isArray(watchHistory)) {
+        return res.status(400).json({ message: "Invalid watch history format" });
+      }
+
+      const processedVideos = [];
+
+      // Process each video from watch history
+      for (const historyItem of watchHistory.slice(0, 20)) { // Limit to 20 videos for performance
+        try {
+          // Extract video ID from URL
+          const videoId = youtubeService.extractVideoId(historyItem.url);
+          if (!videoId) continue;
+
+          // Check if video already exists for this user
+          const existingVideos = await storage.getUserVideos(userId);
+          if (existingVideos.some(v => v.youtubeId === videoId)) {
+            continue; // Skip if already processed
+          }
+
+          // Get video info and transcript
+          const videoInfo = await youtubeService.getVideoInfo(videoId);
+          const transcript = await youtubeService.getVideoTranscript(videoId);
+          
+          // Create video record
+          const videoData = insertVideoSchema.parse({
+            userId,
+            youtubeId: videoId,
+            title: videoInfo.title,
+            channelName: videoInfo.channelTitle,
+            duration: youtubeService.parseDuration(videoInfo.duration),
+            thumbnail: videoInfo.thumbnails.medium?.url,
+            transcript: transcript,
+            category: youtubeService.categorizeContent(videoInfo.title, videoInfo.description),
+          });
+
+          const video = await storage.createVideo(videoData);
+
+          // Generate questions using AI
+          const generatedQuestions = await openaiService.generateQuestions(
+            videoInfo.title,
+            transcript,
+            videoInfo.channelTitle,
+            5 // Generate 5 questions per video for bulk import
+          );
+
+          // Save questions to storage
+          const questionsData = generatedQuestions.map(q => ({
+            id: nanoid(),
+            videoId: video.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            difficulty: q.difficulty,
+          }));
+
+          await storage.createQuestions(questionsData);
+          processedVideos.push(video);
+
+        } catch (error) {
+          console.error(`Error processing video ${historyItem.url}:`, error);
+          // Continue with next video on error
+        }
+      }
+
+      res.json({ 
+        message: `Successfully imported ${processedVideos.length} videos from watch history`,
+        processedCount: processedVideos.length,
+        videos: processedVideos
+      });
+
+    } catch (error) {
+      console.error("Error importing watch history:", error);
+      res.status(500).json({ message: "Failed to import watch history" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

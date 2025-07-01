@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Navigation from "@/components/navigation";
 import VideoInput from "@/components/video-input";
+import WatchHistoryImport from "@/components/watch-history-import";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -121,9 +122,13 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Video Input */}
-        <div className="mb-8">
+        {/* Video Input and Watch History Import */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           <VideoInput />
+          <WatchHistoryImport onImportComplete={() => {
+            // Refresh the videos list after import
+            window.location.reload();
+          }} />
         </div>
 
         {/* Stats Cards */}
