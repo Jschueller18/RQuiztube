@@ -27,10 +27,9 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
   const queryClient = useQueryClient();
 
   const importMutation = useMutation({
-    mutationFn: async (watchHistoryData: any[]) => {
-      const response = await apiRequest("/api/import-watch-history", "POST", { 
-        watchHistory: watchHistoryData 
-      });
+    mutationFn: async (data: { watchHistory?: any[], htmlContent?: string }) => {
+      const endpoint = data.htmlContent ? "/api/import/html" : "/api/import-watch-history";
+      const response = await apiRequest(endpoint, "POST", data);
       return response;
     },
     onSuccess: () => {
@@ -56,12 +55,15 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
-      if (selectedFile.type === "application/json" || selectedFile.name.endsWith(".json")) {
+      const isJson = selectedFile.type === "application/json" || selectedFile.name.endsWith(".json");
+      const isHtml = selectedFile.type === "text/html" || selectedFile.name.endsWith(".html");
+      
+      if (isJson || isHtml) {
         setFile(selectedFile);
       } else {
         toast({
           title: "Invalid File Type",
-          description: "Please select a JSON file from Google Takeout",
+          description: "Please select a JSON or HTML file from Google Takeout",
           variant: "destructive",
         });
       }

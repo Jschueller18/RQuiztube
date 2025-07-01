@@ -382,6 +382,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import watch history from HTML file (Google Takeout format)
+  app.post('/api/import/html', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { htmlContent } = req.body;
+
+      if (!htmlContent) {
+        return res.status(400).json({ message: "HTML content is required" });
+      }
+
+      // Parse HTML to extract video data
+      const videos = youtubeService.parseWatchHistoryHTML(htmlContent);
+      
+      if (videos.length === 0) {
+        return res.status(400).json({ message: "No videos found in the HTML file" });
+      }
+
+      console.log(`Found ${videos.length} videos in HTML file`);
+      const processedVideos = [];
+
+      // Process videos in batches to avoid overloading APIs
+      for (const historyItem of videos.slice(0, 50)) { // Limit to first 50 videos
+        try {
+          const videoId = historyItem.videoId;
+          
+          // Check if video already exists
+          const existingVideos = await storage.getUserVideos(userId);
+          if (existingVideos.some(v => v.youtubeId === videoId)) {
+            continue; // Skip if already processed
+          }
+
+          // Get video information
+          const videoInfo = await youtubeService.getVideoInfo(videoId);
+          const transcript = await youtubeService.getVideoTranscript(videoId);
+          const category = youtubeService.categorizeContent(videoInfo.title, videoInfo.description);
+
+          // Create video record
+          const videoData = insertVideoSchema.parse({
+            userId,
+            youtubeId: videoId,
+            title: videoInfo.title,
+            channelName: videoInfo.channelTitle,
+            duration: youtubeService.parseDuration(videoInfo.duration),
+            thumbnail: videoInfo.thumbnails.medium.url,
+            transcript,
+            category,
+          });
+
+          const video = await storage.createVideo(videoData);
+
+          // Generate questions
+          const generatedQuestions = await openaiService.generateQuestions(
+            videoInfo.title,
+            transcript,
+            category,
+            5 // Generate 5 questions per video for bulk import
+          );
+
+          // Save questions to storage
+          const questionsData = generatedQuestions.map(q => ({
+            id: nanoid(),
+            videoId: video.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            difficulty: q.difficulty,
+          }));
+
+          await storage.createQuestions(questionsData);
+          processedVideos.push(video);
+
+        } catch (error) {
+          console.error(`Error processing video ${historyItem.videoId}:`, error);
+          // Continue with next video on error
+        }
+      }
+
+      res.json({ 
+        message: `Successfully imported ${processedVideos.length} videos from HTML watch history`,
+        processedCount: processedVideos.length,
+        totalFound: videos.length,
+        videos: processedVideos
+      });
+
+    } catch (error) {
+      console.error("Error importing HTML watch history:", error);
+      res.status(500).json({ message: "Failed to import HTML watch history" });
+    }
+  });
+
   // Google Drive automation endpoints
   app.post('/api/automation/create-drive-folder', isAuthenticated, async (req: any, res) => {
     try {

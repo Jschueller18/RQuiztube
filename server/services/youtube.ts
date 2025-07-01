@@ -131,4 +131,53 @@ export class YouTubeService {
 
     return "general";
   }
+
+  /**
+   * Parse YouTube watch history from HTML format (Google Takeout)
+   * @param htmlContent The HTML content from watch-history.html
+   * @returns Array of video entries with titles and URLs
+   */
+  parseWatchHistoryHTML(htmlContent: string): Array<{title: string, url: string, videoId: string, timestamp?: string}> {
+    const videos: Array<{title: string, url: string, videoId: string, timestamp?: string}> = [];
+    
+    // Look for video links in the HTML content
+    // Google Takeout HTML typically contains links like: <a href="https://www.youtube.com/watch?v=VIDEO_ID">Video Title</a>
+    const videoLinkRegex = /<a[^>]*href="https:\/\/www\.youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})"[^>]*>([^<]+)<\/a>/g;
+    
+    let match;
+    while ((match = videoLinkRegex.exec(htmlContent)) !== null) {
+      const videoId = match[1];
+      const title = match[2].trim();
+      const url = `https://www.youtube.com/watch?v=${videoId}`;
+      
+      // Avoid duplicates
+      if (!videos.some(v => v.videoId === videoId)) {
+        videos.push({
+          title,
+          url,
+          videoId,
+        });
+      }
+    }
+    
+    // Alternative pattern for different HTML structures
+    if (videos.length === 0) {
+      // Try alternative regex patterns
+      const altRegex = /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/g;
+      
+      let videoMatch;
+      while ((videoMatch = altRegex.exec(htmlContent)) !== null) {
+        const videoId = videoMatch[1];
+        if (!videos.some(v => v.videoId === videoId)) {
+          videos.push({
+            title: 'Video from Watch History',
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+            videoId,
+          });
+        }
+      }
+    }
+    
+    return videos;
+  }
 }
