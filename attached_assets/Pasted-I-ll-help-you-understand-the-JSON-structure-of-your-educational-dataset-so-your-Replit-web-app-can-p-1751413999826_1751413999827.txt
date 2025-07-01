@@ -1,0 +1,82 @@
+I'll help you understand the JSON structure of your educational dataset so your Replit web app can properly process it. Let me examine the JSON file structure and provide you with the exact schema and processing code.
+```bash
+python -c "import json; data=json.load(open('educational_videos_refined.json', 'r', encoding='utf-8')); print('JSON Structure:'); print('Top-level keys:', list(data.keys())); print('\\nMetadata keys:', list(data['metadata'].keys())); print('\\nVideo array length:', len(data['videos'])); print('\\nFirst video keys:', list(data['videos'][0].keys())); print('\\nSample video:', json.dumps(data['videos'][0], indent=2)[:1000] + '...')"
+```
+
+Now let me create a test script and show you a real example from your dataset:
+```bash
+python test_json_processing.py
+```
+Ran tool
+
+Perfect! Now here's everything your Replit app needs to properly process the JSON file:
+
+## 🎯 **JSON Structure Summary**
+
+Your `educational_videos_refined.json` has:
+- **Top-level keys:** `metadata` and `videos`
+- **Videos array:** 3,032 educational videos
+- **18 fields per video** including all the data you need
+
+## 📋 **Ready-to-Use Replit Code**
+
+Perfect! Now let me create a quick reference summary for you:
+
+## 🎯 **Complete Replit Integration Package Ready!**
+
+I've created everything your Replit app needs to properly process the educational videos JSON:
+
+### 📋 **What You Now Have:**
+
+1. **📊 `json_schema_guide.md`** - Complete JSON structure documentation
+2. **🚀 `replit_integration.py`** - Ready-to-use processing class  
+3. **⚡ `replit_quick_reference.md`** - Quick start guide
+
+### 🔑 **Key Information for Your Replit App:**
+
+**JSON Structure:**
+- **Top-level:** `metadata` and `videos` arrays
+- **3,032 videos** with 18 fields each including:
+  - `video_id` (for YouTube API)
+  - `title`, `description` (for OpenAI context)
+  - `educational_score` (for quality filtering)
+  - `duration_minutes` (for time-based filtering)
+
+**High-Quality Content Available:**
+- **683 videos** with score ≥ 0.7 (premium quality)
+- **863 videos** with score ≥ 0.6 (high quality)  
+- **705 videos** in Education category '27'
+
+### 🚀 **For Your Replit App:**
+
+1. **Upload:** `educational_videos_refined.json` to your Replit project
+2. **Copy:** The `EducationalVideoProcessor` class from `replit_integration.py`
+3. **Install:** `pip install openai requests`
+4. **Add:** Your YouTube and OpenAI API keys
+5. **Test:** Start with `limit=3` videos
+
+### 💡 **Simple Usage:**
+
+```python
+processor = EducationalVideoProcessor('educational_videos_refined.json')
+results = processor.process_videos_for_quiz(limit=5)
+```
+
+Your Replit app should now be able to successfully load and process the JSON file! The code includes comprehensive error handling and filtering options to get the best educational content for quiz generation.
+Ran tool
+Ran tool
+Ran tool
+
+Perfect! Your Replit web app now has everything it needs to properly process your educational videos JSON file. 
+
+**The key issue was likely that your app wasn't accessing the correct JSON structure.** Your file has:
+- `data['videos']` - array of 3,032 videos
+- `data['metadata']` - dataset information
+
+**Each video has 18 fields including the essentials:**
+- `video_id` for YouTube API calls
+- `title`, `description` for OpenAI context  
+- `educational_score` for quality filtering
+- `duration_minutes` for time-based filtering
+
+With the `EducationalVideoProcessor` class I provided, your Replit app can now successfully load, filter, and process your 3,032 educational videos for quiz generation! 🎯📚

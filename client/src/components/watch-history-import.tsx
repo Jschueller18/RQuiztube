@@ -35,12 +35,16 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
         endpoint = "/api/import/educational-videos";
       }
       const response = await apiRequest("POST", endpoint, data);
-      return response;
+      return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
+      const isEducationalData = data.metadata?.importedFrom === 'structured-educational-data';
+      
       toast({
         title: "Import Complete",
-        description: "Your YouTube watch history has been imported successfully!",
+        description: isEducationalData 
+          ? `Successfully imported ${data.processedCount} educational videos from ${data.totalAvailable} available` 
+          : "Your YouTube watch history has been imported successfully!",
       });
       queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
       setImportProgress(null);

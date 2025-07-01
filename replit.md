@@ -47,18 +47,20 @@ QuizTube is a full-stack web application that transforms passive YouTube video c
 
 ### Core Features
 1. **Video Analysis**: YouTube video import, transcript extraction, and AI-powered question generation
-2. **Quiz System**: Interactive quiz interface with multiple choice questions and immediate feedback
-3. **Progress Tracking**: Learning analytics, streak tracking, and performance metrics
-4. **User Preferences**: Customizable learning goals, categories, and notification settings
-5. **Review Scheduling**: Intelligent spaced repetition with due review management
+2. **Bulk Data Import**: Support for structured educational video datasets and Google Takeout files
+3. **Quiz System**: Interactive quiz interface with multiple choice questions and immediate feedback
+4. **Progress Tracking**: Learning analytics, streak tracking, and performance metrics
+5. **User Preferences**: Customizable learning goals, categories, and notification settings
+6. **Review Scheduling**: Intelligent spaced repetition with due review management
 
 ## Data Flow
 
 1. **Authentication Flow**: User authenticates via Replit OAuth → Session creation → User profile management
 2. **Content Ingestion**: YouTube URL input → Video metadata extraction → Transcript analysis → AI question generation
-3. **Quiz Flow**: Quiz session creation → Question presentation → Response recording → Performance evaluation
-4. **Spaced Repetition**: Performance analysis → Next review calculation → Schedule updates → Due review notifications
-5. **Analytics**: Response aggregation → Performance metrics → Progress visualization
+3. **Bulk Import Flow**: Educational video data upload → Quality filtering → Batch processing → Question generation
+4. **Quiz Flow**: Quiz session creation → Question presentation → Response recording → Performance evaluation
+5. **Spaced Repetition**: Performance analysis → Next review calculation → Schedule updates → Due review notifications
+6. **Analytics**: Response aggregation → Performance metrics → Progress visualization
 
 ## External Dependencies
 

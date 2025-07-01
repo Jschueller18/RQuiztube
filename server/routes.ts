@@ -491,9 +491,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const skippedVideos = [];
       const failedVideos = [];
 
+      // Filter for high-quality educational content (score >= 0.6) and limit for performance
+      const highQualityVideos = videos.filter((v: any) => v.educational_score >= 0.6);
+      const videosToProcess = highQualityVideos.slice(0, 50);
+      
+      console.log(`Found ${highQualityVideos.length} high-quality videos, processing first ${videosToProcess.length}`);
+
       // Process each video from the structured data
-      for (let i = 0; i < Math.min(videos.length, 50); i++) { // Limit to 50 videos for performance
-        const videoItem = videos[i];
+      for (let i = 0; i < videosToProcess.length; i++) {
+        const videoItem = videosToProcess[i];
         
         try {
           const videoId = videoItem.video_id;
@@ -609,7 +615,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         processedCount: processedVideos.length,
         skippedCount: skippedVideos.length,
         failedCount: failedVideos.length,
-        totalAttempted: Math.min(videos.length, 50),
+        totalAttempted: videosToProcess.length,
         totalAvailable: videos.length,
         metadata: {
           importedFrom: 'structured-educational-data',
