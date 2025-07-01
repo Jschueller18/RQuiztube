@@ -75,36 +75,45 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
 
     try {
       const fileContent = await file.text();
-      const watchHistoryData = JSON.parse(fileContent);
+      const isHtmlFile = file.name.endsWith('.html') || file.type === 'text/html';
       
-      // Validate the structure - Google Takeout YouTube data usually has this structure
-      if (!Array.isArray(watchHistoryData)) {
-        throw new Error("Invalid file format. Expected an array of watch history items.");
+      if (isHtmlFile) {
+        // Handle HTML file (watch-history.html from Google Takeout)
+        setImportProgress({ current: 0, total: 1, currentVideo: "Processing HTML file..." });
+        importMutation.mutate({ htmlContent: fileContent });
+      } else {
+        // Handle JSON file (legacy format)
+        const watchHistoryData = JSON.parse(fileContent);
+        
+        // Validate the structure - Google Takeout YouTube data usually has this structure
+        if (!Array.isArray(watchHistoryData)) {
+          throw new Error("Invalid file format. Expected an array of watch history items.");
+        }
+
+        // Filter and process the watch history data
+        const validVideos = watchHistoryData
+          .filter(item => 
+            item.titleUrl && 
+            item.titleUrl.includes('youtube.com/watch') &&
+            item.title && 
+            item.title !== "Watched a video that has been removed"
+          )
+          .map(item => ({
+            url: item.titleUrl,
+            title: item.title,
+            time: item.time,
+            subtitles: item.subtitles?.[0]?.name || null
+          }))
+          .slice(0, 50); // Limit to first 50 videos to avoid overwhelming the system
+
+        if (validVideos.length === 0) {
+          throw new Error("No valid YouTube videos found in the file.");
+        }
+
+        // Start the import process
+        setImportProgress({ current: 0, total: validVideos.length, currentVideo: "" });
+        importMutation.mutate({ watchHistory: validVideos });
       }
-
-      // Filter and process the watch history data
-      const validVideos = watchHistoryData
-        .filter(item => 
-          item.titleUrl && 
-          item.titleUrl.includes('youtube.com/watch') &&
-          item.title && 
-          item.title !== "Watched a video that has been removed"
-        )
-        .map(item => ({
-          url: item.titleUrl,
-          title: item.title,
-          time: item.time,
-          subtitles: item.subtitles?.[0]?.name || null
-        }))
-        .slice(0, 50); // Limit to first 50 videos to avoid overwhelming the system
-
-      if (validVideos.length === 0) {
-        throw new Error("No valid YouTube videos found in the file.");
-      }
-
-      // Start the import process
-      setImportProgress({ current: 0, total: validVideos.length, currentVideo: "" });
-      importMutation.mutate(validVideos);
 
     } catch (error) {
       toast({
@@ -134,8 +143,8 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
             <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
               <li>Go to <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Takeout</a></li>
               <li>Select "YouTube and YouTube Music"</li>
-              <li>Choose "history" folder and select "watch-history.json"</li>
-              <li>Download and upload the JSON file here</li>
+              <li>Choose "history" folder and find "watch-history.html"</li>
+              <li>Extract the HTML file from the ZIP and upload it here</li>
             </ol>
           </AlertDescription>
         </Alert>
@@ -145,7 +154,7 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
           <Input
             id="watch-history-file"
             type="file"
-            accept=".json"
+            accept=".json,.html"
             onChange={handleFileChange}
             disabled={importMutation.isPending}
           />
