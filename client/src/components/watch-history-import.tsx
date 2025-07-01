@@ -29,7 +29,7 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
   const importMutation = useMutation({
     mutationFn: async (data: { watchHistory?: any[], htmlContent?: string }) => {
       const endpoint = data.htmlContent ? "/api/import/html" : "/api/import-watch-history";
-      const response = await apiRequest(endpoint, "POST", data);
+      const response = await apiRequest("POST", endpoint, data);
       return response;
     },
     onSuccess: () => {
