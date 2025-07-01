@@ -27,8 +27,13 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
   const queryClient = useQueryClient();
 
   const importMutation = useMutation({
-    mutationFn: async (data: { watchHistory?: any[], htmlContent?: string }) => {
-      const endpoint = data.htmlContent ? "/api/import/html" : "/api/import-watch-history";
+    mutationFn: async (data: { watchHistory?: any[], htmlContent?: string, videoData?: any }) => {
+      let endpoint = "/api/import-watch-history";
+      if (data.htmlContent) {
+        endpoint = "/api/import/html";
+      } else if (data.videoData) {
+        endpoint = "/api/import/educational-videos";
+      }
       const response = await apiRequest("POST", endpoint, data);
       return response;
     },
@@ -63,7 +68,7 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
       } else {
         toast({
           title: "Invalid File Type",
-          description: "Please select a JSON or HTML file from Google Takeout",
+          description: "Please select a JSON or HTML file",
           variant: "destructive",
         });
       }
@@ -82,37 +87,50 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
         setImportProgress({ current: 0, total: 1, currentVideo: "Processing HTML file..." });
         importMutation.mutate({ htmlContent: fileContent });
       } else {
-        // Handle JSON file (legacy format)
-        const watchHistoryData = JSON.parse(fileContent);
+        // Handle JSON file - detect format
+        const jsonData = JSON.parse(fileContent);
         
-        // Validate the structure - Google Takeout YouTube data usually has this structure
-        if (!Array.isArray(watchHistoryData)) {
-          throw new Error("Invalid file format. Expected an array of watch history items.");
+        // Check if it's the structured educational video format
+        if (jsonData.videos && Array.isArray(jsonData.videos) && jsonData.metadata) {
+          // Structured educational video format
+          const videos = jsonData.videos;
+          const totalVideos = Math.min(videos.length, 50); // Limit for performance
+          
+          setImportProgress({ 
+            current: 0, 
+            total: totalVideos, 
+            currentVideo: "Processing structured educational video data..." 
+          });
+          
+          importMutation.mutate({ videoData: jsonData });
+          
+        } else if (Array.isArray(jsonData)) {
+          // Legacy Google Takeout format
+          const validVideos = jsonData
+            .filter(item => 
+              item.titleUrl && 
+              item.titleUrl.includes('youtube.com/watch') &&
+              item.title && 
+              item.title !== "Watched a video that has been removed"
+            )
+            .map(item => ({
+              url: item.titleUrl,
+              title: item.title,
+              time: item.time,
+              subtitles: item.subtitles?.[0]?.name || null
+            }))
+            .slice(0, 50);
+
+          if (validVideos.length === 0) {
+            throw new Error("No valid YouTube videos found in the file.");
+          }
+
+          setImportProgress({ current: 0, total: validVideos.length, currentVideo: "" });
+          importMutation.mutate({ watchHistory: validVideos });
+          
+        } else {
+          throw new Error("Unrecognized JSON format. Please check your file format.");
         }
-
-        // Filter and process the watch history data
-        const validVideos = watchHistoryData
-          .filter(item => 
-            item.titleUrl && 
-            item.titleUrl.includes('youtube.com/watch') &&
-            item.title && 
-            item.title !== "Watched a video that has been removed"
-          )
-          .map(item => ({
-            url: item.titleUrl,
-            title: item.title,
-            time: item.time,
-            subtitles: item.subtitles?.[0]?.name || null
-          }))
-          .slice(0, 50); // Limit to first 50 videos to avoid overwhelming the system
-
-        if (validVideos.length === 0) {
-          throw new Error("No valid YouTube videos found in the file.");
-        }
-
-        // Start the import process
-        setImportProgress({ current: 0, total: validVideos.length, currentVideo: "" });
-        importMutation.mutate({ watchHistory: validVideos });
       }
 
     } catch (error) {
@@ -132,20 +150,29 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
           Import YouTube Watch History
         </CardTitle>
         <CardDescription>
-          Upload your Google Takeout YouTube watch history file to automatically generate quizzes from your viewed videos
+          Upload your YouTube data to automatically generate quizzes from videos. Supports Google Takeout files and structured educational video data.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            <strong>How to get your watch history:</strong>
-            <ol className="list-decimal list-inside mt-2 space-y-1 text-sm">
-              <li>Go to <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Takeout</a></li>
-              <li>Select "YouTube and YouTube Music"</li>
-              <li>Choose "history" folder and find "watch-history.html"</li>
-              <li>Extract the HTML file from the ZIP and upload it here</li>
-            </ol>
+            <strong>Supported file formats:</strong>
+            <div className="mt-2 space-y-3 text-sm">
+              <div>
+                <strong>Google Takeout:</strong>
+                <ol className="list-decimal list-inside mt-1 space-y-1">
+                  <li>Go to <a href="https://takeout.google.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Google Takeout</a></li>
+                  <li>Select "YouTube and YouTube Music"</li>
+                  <li>Choose "history" folder and find "watch-history.html"</li>
+                  <li>Extract the HTML file from the ZIP and upload it here</li>
+                </ol>
+              </div>
+              <div>
+                <strong>Structured Educational Data:</strong>
+                <p className="mt-1">Upload JSON files containing structured video data with metadata and video information.</p>
+              </div>
+            </div>
           </AlertDescription>
         </Alert>
 

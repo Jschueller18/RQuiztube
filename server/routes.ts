@@ -473,6 +473,160 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import structured educational video data (JSON format)
+  app.post('/api/import/educational-videos', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { videoData } = req.body;
+
+      if (!videoData || !videoData.videos || !Array.isArray(videoData.videos)) {
+        return res.status(400).json({ message: "Invalid video data format. Expected format with 'videos' array." });
+      }
+
+      const videos = videoData.videos;
+      const metadata = videoData.metadata || {};
+      
+      console.log(`Processing ${videos.length} educational videos from structured data`);
+      const processedVideos = [];
+      const skippedVideos = [];
+      const failedVideos = [];
+
+      // Process each video from the structured data
+      for (let i = 0; i < Math.min(videos.length, 50); i++) { // Limit to 50 videos for performance
+        const videoItem = videos[i];
+        
+        try {
+          const videoId = videoItem.video_id;
+          if (!videoId) {
+            skippedVideos.push({ reason: 'No video ID', title: videoItem.title });
+            continue;
+          }
+
+          // Check if video already exists for this user
+          const existingVideos = await storage.getUserVideos(userId);
+          if (existingVideos.some(v => v.youtubeId === videoId)) {
+            skippedVideos.push({ reason: 'Already exists', title: videoItem.title });
+            continue;
+          }
+
+          // Map category ID to a more readable category name
+          const getCategoryName = (categoryId: string) => {
+            const categories: Record<string, string> = {
+              '1': 'Film & Animation',
+              '2': 'Autos & Vehicles', 
+              '10': 'Music',
+              '15': 'Pets & Animals',
+              '17': 'Sports',
+              '19': 'Travel & Events',
+              '20': 'Gaming',
+              '22': 'People & Blogs',
+              '23': 'Comedy',
+              '24': 'Entertainment',
+              '25': 'News & Politics',
+              '26': 'Howto & Style',
+              '27': 'Education',
+              '28': 'Science & Technology',
+              '29': 'Nonprofits & Activism',
+            };
+            return categories[categoryId] || 'Education';
+          };
+
+          // Create video record using the structured data
+          const videoData = insertVideoSchema.parse({
+            userId,
+            youtubeId: videoId,
+            title: videoItem.title || 'Educational Video',
+            channelName: videoItem.channel_name || 'Unknown Channel',
+            duration: videoItem.duration_seconds || 0,
+            thumbnail: videoItem.thumbnail_url || '',
+            transcript: '', // Will be fetched later if needed for questions
+            category: getCategoryName(videoItem.category_id),
+          });
+
+          const video = await storage.createVideo(videoData);
+
+          // Try to get transcript for question generation
+          let transcript = '';
+          let generatedQuestions = [];
+          
+          try {
+            transcript = await youtubeService.getVideoTranscript(videoId);
+            
+            if (transcript) {
+              // Generate questions using AI with the transcript
+              generatedQuestions = await openaiService.generateQuestions(
+                videoItem.title,
+                transcript,
+                getCategoryName(videoItem.category_id),
+                5 // Generate 5 questions per video
+              );
+            } else {
+              // Generate questions using video metadata if no transcript
+              generatedQuestions = await openaiService.generateQuestions(
+                videoItem.title,
+                videoItem.description || '',
+                getCategoryName(videoItem.category_id),
+                3 // Fewer questions without transcript
+              );
+            }
+
+            // Save questions to storage
+            if (generatedQuestions.length > 0) {
+              const questionsData = generatedQuestions.map(q => ({
+                id: nanoid(),
+                videoId: video.id,
+                question: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                explanation: q.explanation,
+                difficulty: q.difficulty,
+              }));
+
+              await storage.createQuestions(questionsData);
+            }
+
+          } catch (transcriptError) {
+            console.log(`No transcript available for ${videoItem.title}, skipping question generation`);
+          }
+
+          processedVideos.push({
+            ...video,
+            questionsGenerated: generatedQuestions.length,
+            hasTranscript: !!transcript
+          });
+
+        } catch (error) {
+          console.error(`Error processing video ${videoItem.title}:`, error);
+          failedVideos.push({ 
+            title: videoItem.title, 
+            error: error instanceof Error ? error.message : 'Unknown error' 
+          });
+        }
+      }
+
+      res.json({ 
+        message: `Successfully imported ${processedVideos.length} educational videos`,
+        processedCount: processedVideos.length,
+        skippedCount: skippedVideos.length,
+        failedCount: failedVideos.length,
+        totalAttempted: Math.min(videos.length, 50),
+        totalAvailable: videos.length,
+        metadata: {
+          importedFrom: 'structured-educational-data',
+          originalMetadata: metadata,
+          timestamp: new Date().toISOString()
+        },
+        videos: processedVideos,
+        skipped: skippedVideos,
+        failed: failedVideos
+      });
+
+    } catch (error) {
+      console.error("Error importing educational videos:", error);
+      res.status(500).json({ message: "Failed to import educational videos" });
+    }
+  });
+
   // Google Drive automation endpoints
   app.post('/api/automation/create-drive-folder', isAuthenticated, async (req: any, res) => {
     try {
