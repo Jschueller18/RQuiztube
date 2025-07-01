@@ -5,6 +5,7 @@ import { setupAuth, isAuthenticated } from "./replitAuth";
 import { YouTubeService } from "./services/youtube";
 import { OpenAIService } from "./services/openai";
 import { SpacedRepetitionService } from "./services/spaced-repetition";
+import { GoogleDriveService } from "./services/google-drive";
 import { insertVideoSchema, insertQuizSessionSchema, insertQuestionResponseSchema } from "@shared/schema";
 import { nanoid } from "nanoid";
 
@@ -15,6 +16,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const youtubeService = new YouTubeService();
   const openaiService = new OpenAIService();
   const spacedRepetitionService = new SpacedRepetitionService();
+  const googleDriveService = new GoogleDriveService();
 
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
@@ -377,6 +379,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing watch history:", error);
       res.status(500).json({ message: "Failed to import watch history" });
+    }
+  });
+
+  // Google Drive automation endpoints
+  app.post('/api/automation/create-drive-folder', isAuthenticated, async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.user.claims.sub);
+      if (!user?.email) {
+        return res.status(400).json({ message: "User email not found" });
+      }
+
+      const folder = await googleDriveService.createTakeoutFolder(user.email);
+      res.json({
+        message: "Shared folder created successfully",
+        folderId: folder.folderId,
+        shareUrl: folder.shareUrl,
+        instructions: [
+          "1. Click the link to access your shared folder",
+          "2. Upload your Google Takeout ZIP file to this folder",
+          "3. The system will automatically process new files",
+          "4. You'll receive notifications when processing is complete"
+        ]
+      });
+    } catch (error) {
+      console.error("Error creating drive folder:", error);
+      res.status(500).json({ message: "Google Drive integration requires service account setup" });
+    }
+  });
+
+  app.get('/api/automation/drive-files/:folderId?', isAuthenticated, async (req: any, res) => {
+    try {
+      const { folderId } = req.params;
+      const files = await googleDriveService.listTakeoutFiles(folderId);
+      res.json({ files });
+    } catch (error) {
+      console.error("Error listing drive files:", error);
+      res.status(500).json({ message: "Failed to list drive files" });
+    }
+  });
+
+  app.post('/api/automation/process-drive-file', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { fileId } = req.body;
+
+      if (!fileId) {
+        return res.status(400).json({ message: "File ID is required" });
+      }
+
+      // Download and parse watch history from Google Drive
+      const watchHistoryData = await googleDriveService.downloadWatchHistory(fileId);
+      
+      // Process the watch history (same logic as manual import)
+      const processedVideos = [];
+      for (const historyItem of watchHistoryData.slice(0, 20)) {
+        try {
+          const videoId = youtubeService.extractVideoId(historyItem.titleUrl);
+          if (!videoId) continue;
+
+          const existingVideos = await storage.getUserVideos(userId);
+          if (existingVideos.some(v => v.youtubeId === videoId)) continue;
+
+          const videoInfo = await youtubeService.getVideoInfo(videoId);
+          const transcript = await youtubeService.getVideoTranscript(videoId);
+          
+          const videoData = insertVideoSchema.parse({
+            userId,
+            youtubeId: videoId,
+            title: videoInfo.title,
+            channelName: videoInfo.channelTitle,
+            duration: youtubeService.parseDuration(videoInfo.duration),
+            thumbnail: videoInfo.thumbnails.medium?.url,
+            transcript: transcript,
+            category: youtubeService.categorizeContent(videoInfo.title, videoInfo.description),
+          });
+
+          const video = await storage.createVideo(videoData);
+
+          const generatedQuestions = await openaiService.generateQuestions(
+            videoInfo.title,
+            transcript,
+            videoInfo.channelTitle,
+            5
+          );
+
+          const questionsData = generatedQuestions.map(q => ({
+            id: nanoid(),
+            videoId: video.id,
+            question: q.question,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            difficulty: q.difficulty,
+          }));
+
+          await storage.createQuestions(questionsData);
+          processedVideos.push(video);
+
+        } catch (error) {
+          console.error(`Error processing video ${historyItem.titleUrl}:`, error);
+        }
+      }
+
+      res.json({ 
+        message: `Automatically processed ${processedVideos.length} videos from Google Drive`,
+        processedCount: processedVideos.length,
+        videos: processedVideos
+      });
+
+    } catch (error) {
+      console.error("Error processing drive file:", error);
+      res.status(500).json({ message: "Failed to process drive file" });
+    }
+  });
+
+  // Webhook endpoint for Google Drive notifications
+  app.post('/api/webhooks/drive-update', async (req, res) => {
+    try {
+      // This endpoint would be called by Google Drive when files are added
+      // For security, you'd want to verify the webhook signature
+      const { fileId, folderId } = req.body;
+      
+      // You could store this notification and process it asynchronously
+      console.log(`Received Drive webhook: file ${fileId} in folder ${folderId}`);
+      
+      res.status(200).json({ message: "Webhook received" });
+    } catch (error) {
+      console.error("Error handling drive webhook:", error);
+      res.status(500).json({ message: "Webhook error" });
     }
   });
 
