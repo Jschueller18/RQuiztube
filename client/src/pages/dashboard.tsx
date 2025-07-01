@@ -124,13 +124,28 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Video Input and Watch History Import */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <VideoInput />
-          <WatchHistoryImport onImportComplete={() => {
-            // Refresh the videos list after import
-            window.location.reload();
-          }} />
+        {/* Video Input Options */}
+        <div className="mb-8">
+          <Tabs defaultValue="single" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="single">Single Video</TabsTrigger>
+              <TabsTrigger value="bulk">Bulk Import</TabsTrigger>
+              <TabsTrigger value="automation">Automation</TabsTrigger>
+            </TabsList>
+            <TabsContent value="single" className="mt-6">
+              <VideoInput />
+            </TabsContent>
+            <TabsContent value="bulk" className="mt-6">
+              <WatchHistoryImport onImportComplete={() => {
+                window.location.reload();
+              }} />
+            </TabsContent>
+            <TabsContent value="automation" className="mt-6">
+              <AutomationSetup onSetupComplete={() => {
+                window.location.reload();
+              }} />
+            </TabsContent>
+          </Tabs>
         </div>
 
         {/* Stats Cards */}
