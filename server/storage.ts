@@ -18,6 +18,13 @@ import {
   type ReviewSchedule,
   type InsertReviewSchedule,
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, lte, isNotNull, count } from "drizzle-orm";
+
+// Simple ID generation utility
+function generateId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+}
 
 export interface IStorage {
   // User operations (mandatory for Replit Auth)
@@ -290,4 +297,211 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations (mandatory for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async updateUserPreferences(id: string, preferences: Partial<User>): Promise<User> {
+    const [user] = await db
+      .update(users)
+      .set({ ...preferences, updatedAt: new Date() })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  }
+
+  // Video operations
+  async createVideo(videoData: InsertVideo): Promise<Video> {
+    const [video] = await db
+      .insert(videos)
+      .values({ ...videoData, id: generateId() })
+      .returning();
+    return video;
+  }
+
+  async getUserVideos(userId: string): Promise<Video[]> {
+    return await db
+      .select()
+      .from(videos)
+      .where(eq(videos.userId, userId));
+  }
+
+  async getVideo(id: string): Promise<Video | undefined> {
+    const [video] = await db
+      .select()
+      .from(videos)
+      .where(eq(videos.id, id));
+    return video;
+  }
+
+  // Question operations
+  async createQuestions(questionsData: InsertQuestion[]): Promise<Question[]> {
+    if (questionsData.length === 0) return [];
+    const questionsWithIds = questionsData.map(q => ({ ...q, id: generateId() }));
+    return await db
+      .insert(questions)
+      .values(questionsWithIds)
+      .returning();
+  }
+
+  async getVideoQuestions(videoId: string): Promise<Question[]> {
+    return await db
+      .select()
+      .from(questions)
+      .where(eq(questions.videoId, videoId));
+  }
+
+  async getQuestion(id: string): Promise<Question | undefined> {
+    const [question] = await db
+      .select()
+      .from(questions)
+      .where(eq(questions.id, id));
+    return question;
+  }
+
+  // Quiz session operations
+  async createQuizSession(sessionData: InsertQuizSession): Promise<QuizSession> {
+    const [session] = await db
+      .insert(quizSessions)
+      .values({ ...sessionData, id: generateId() })
+      .returning();
+    return session;
+  }
+
+  async updateQuizSession(id: string, updates: Partial<QuizSession>): Promise<QuizSession> {
+    const [session] = await db
+      .update(quizSessions)
+      .set(updates)
+      .where(eq(quizSessions.id, id))
+      .returning();
+    return session;
+  }
+
+  async getUserQuizSessions(userId: string): Promise<QuizSession[]> {
+    return await db
+      .select()
+      .from(quizSessions)
+      .where(eq(quizSessions.userId, userId));
+  }
+
+  // Question response operations
+  async createQuestionResponse(responseData: InsertQuestionResponse): Promise<QuestionResponse> {
+    const [response] = await db
+      .insert(questionResponses)
+      .values({ ...responseData, id: generateId() })
+      .returning();
+    return response;
+  }
+
+  async getSessionResponses(sessionId: string): Promise<QuestionResponse[]> {
+    return await db
+      .select()
+      .from(questionResponses)
+      .where(eq(questionResponses.sessionId, sessionId));
+  }
+
+  // Spaced repetition operations
+  async createReviewSchedule(scheduleData: InsertReviewSchedule): Promise<ReviewSchedule> {
+    const [schedule] = await db
+      .insert(reviewSchedule)
+      .values({ ...scheduleData, id: generateId() })
+      .returning();
+    return schedule;
+  }
+
+  async updateReviewSchedule(id: string, updates: Partial<ReviewSchedule>): Promise<ReviewSchedule> {
+    const [schedule] = await db
+      .update(reviewSchedule)
+      .set(updates)
+      .where(eq(reviewSchedule.id, id))
+      .returning();
+    return schedule;
+  }
+
+  async getDueReviews(userId: string): Promise<(ReviewSchedule & { question: Question; video: Video })[]> {
+    const now = new Date();
+    const results = await db
+      .select()
+      .from(reviewSchedule)
+      .innerJoin(questions, eq(reviewSchedule.questionId, questions.id))
+      .innerJoin(videos, eq(questions.videoId, videos.id))
+      .where(
+        and(
+          eq(reviewSchedule.userId, userId),
+          lte(reviewSchedule.nextReview, now)
+        )
+      );
+    
+    return results.map(row => ({
+      ...row.review_schedule,
+      question: row.questions,
+      video: row.videos
+    }));
+  }
+
+  async getUserStats(userId: string): Promise<{
+    totalVideos: number;
+    totalQuizzes: number;
+    averageScore: number;
+    streakDays: number;
+    retentionRate: number;
+  }> {
+    const [videoCount] = await db
+      .select({ count: count() })
+      .from(videos)
+      .where(eq(videos.userId, userId));
+
+    const [quizCount] = await db
+      .select({ count: count() })
+      .from(quizSessions)
+      .where(eq(quizSessions.userId, userId));
+
+    const completedQuizzes = await db
+      .select({ score: quizSessions.score })
+      .from(quizSessions)
+      .where(
+        and(
+          eq(quizSessions.userId, userId),
+          isNotNull(quizSessions.score)
+        )
+      );
+
+    const averageScore = completedQuizzes.length > 0 
+      ? completedQuizzes.reduce((sum, quiz) => sum + (quiz.score || 0), 0) / completedQuizzes.length
+      : 0;
+
+    // Calculate streak days (simplified - can be enhanced later)
+    const streakDays = 0;
+
+    // Calculate retention rate (simplified - can be enhanced later)
+    const retentionRate = completedQuizzes.length > 0 ? averageScore : 0;
+
+    return {
+      totalVideos: videoCount.count,
+      totalQuizzes: quizCount.count,
+      averageScore: Math.round(averageScore),
+      streakDays,
+      retentionRate: Math.round(retentionRate)
+    };
+  }
+}
+
+export const storage = new DatabaseStorage();
