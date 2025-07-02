@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload } from "lucide-react";
 import { Video } from "@shared/schema";
 
 const VIDEOS_PER_PAGE = 18;
@@ -142,14 +142,29 @@ export default function Home() {
       {currentVideos.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-gray-400 mb-4">
-            <PlayCircle className="h-16 w-16 mx-auto" />
+            <Book className="h-16 w-16 mx-auto" />
           </div>
-          <h3 className="text-lg font-semibold mb-2">No videos found</h3>
-          <p className="text-gray-600">
+          <h3 className="text-lg font-semibold mb-2">
+            {searchTerm || selectedCategory !== "all" ? "No videos found" : "Your library is empty"}
+          </h3>
+          <p className="text-gray-600 mb-6">
             {searchTerm || selectedCategory !== "all" 
               ? "Try adjusting your search or filters" 
-              : "Upload some videos to get started"}
+              : "Upload your YouTube watch history or individual videos to start creating quizzes"}
           </p>
+          {!searchTerm && selectedCategory === "all" && (
+            <div className="space-y-3">
+              <Link href="/dashboard">
+                <Button className="bg-youtube-red hover:bg-youtube-dark-red text-white">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload Videos
+                </Button>
+              </Link>
+              <p className="text-sm text-gray-500">
+                Upload your educational videos file or add individual YouTube URLs
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <>

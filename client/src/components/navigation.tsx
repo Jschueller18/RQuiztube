@@ -1,12 +1,13 @@
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { Bell, User, Play } from "lucide-react";
+import { Bell, User, Play, Menu, BookOpen, Upload, BarChart3, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
@@ -31,38 +32,43 @@ export default function Navigation() {
             </Link>
           </div>
           
-          <div className="hidden md:flex items-center space-x-8">
-            <Link href="/" className={`transition-colors ${
-              location === "/" 
-                ? "text-youtube-red" 
-                : "text-gray-700 hover:text-youtube-red"
-            }`}>
-              Library
-            </Link>
-            <Link href="/dashboard" className={`transition-colors ${
-              location === "/dashboard" 
-                ? "text-youtube-red" 
-                : "text-gray-700 hover:text-youtube-red"
-            }`}>
-              Upload
-            </Link>
-            <Link href="/analytics" className={`transition-colors ${
-              location === "/analytics" 
-                ? "text-youtube-red" 
-                : "text-gray-700 hover:text-youtube-red"
-            }`}>
-              Analytics
-            </Link>
-            <Link href="/settings" className={`transition-colors ${
-              location === "/settings" 
-                ? "text-youtube-red" 
-                : "text-gray-700 hover:text-youtube-red"
-            }`}>
-              Settings
-            </Link>
-          </div>
-          
           <div className="flex items-center space-x-4">
+            {/* Main Navigation Menu */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="flex items-center gap-2">
+                  <Menu className="h-4 w-4" />
+                  <span className="hidden sm:inline">Menu</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56" align="end">
+                <DropdownMenuItem asChild>
+                  <Link href="/" className="flex items-center gap-2 w-full">
+                    <BookOpen className="h-4 w-4" />
+                    Library
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard" className="flex items-center gap-2 w-full">
+                    <Upload className="h-4 w-4" />
+                    Upload Videos
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/analytics" className="flex items-center gap-2 w-full">
+                    <BarChart3 className="h-4 w-4" />
+                    Analytics
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/settings" className="flex items-center gap-2 w-full">
+                    <Settings className="h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Button variant="ghost" size="sm">
               <Bell className="h-4 w-4" />
             </Button>
@@ -71,7 +77,7 @@ export default function Navigation() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="relative h-8 w-8 rounded-full">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={user?.profileImageUrl || ""} alt={user?.firstName || "User"} />
+                    <AvatarImage src="" alt="User" />
                     <AvatarFallback>
                       <User className="h-4 w-4" />
                     </AvatarFallback>
@@ -80,11 +86,12 @@ export default function Navigation() {
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-56" align="end" forceMount>
                 <DropdownMenuItem className="flex flex-col items-start">
-                  <div className="font-medium">{user?.firstName} {user?.lastName}</div>
-                  <div className="text-sm text-muted-foreground">{user?.email}</div>
+                  <div className="font-medium">Welcome!</div>
+                  <div className="text-sm text-muted-foreground">QuizTube Account</div>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/settings">Settings</Link>
+                  <Link href="/settings">Account Settings</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => window.location.href = "/api/logout"}>
                   Log out
