@@ -37,7 +37,14 @@ export default function Navigation() {
                 ? "text-youtube-red" 
                 : "text-gray-700 hover:text-youtube-red"
             }`}>
-              Dashboard
+              Library
+            </Link>
+            <Link href="/dashboard" className={`transition-colors ${
+              location === "/dashboard" 
+                ? "text-youtube-red" 
+                : "text-gray-700 hover:text-youtube-red"
+            }`}>
+              Upload
             </Link>
             <Link href="/analytics" className={`transition-colors ${
               location === "/analytics" 

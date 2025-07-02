@@ -61,6 +61,9 @@ export default {
           border: "var(--sidebar-border)",
           ring: "var(--sidebar-ring)",
         },
+        "youtube-red": "var(--youtube-red)",
+        "youtube-dark-red": "var(--youtube-dark-red)",
+        "education-blue": "var(--education-blue)",
       },
       keyframes: {
         "accordion-down": {
