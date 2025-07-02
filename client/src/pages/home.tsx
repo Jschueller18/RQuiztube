@@ -216,7 +216,7 @@ export default function Home() {
                       <span className="text-xs text-gray-500">
                         Added {new Date(video.createdAt || new Date()).toLocaleDateString()}
                       </span>
-                      <Link href={`/quiz/${video.id}`}>
+                      <Link href={`/quiz?video=${video.id}`}>
                         <Button size="sm" className="group-hover:bg-blue-600 transition-colors">
                           <PlayCircle className="h-4 w-4 mr-1" />
                           Start Quiz
