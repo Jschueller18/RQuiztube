@@ -112,23 +112,28 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 
 export const insertVideoSchema = createInsertSchema(videos).omit({
+  id: true,
   processedAt: true,
   createdAt: true,
 });
 
 export const insertQuestionSchema = createInsertSchema(questions).omit({
+  id: true,
   createdAt: true,
 });
 
 export const insertQuizSessionSchema = createInsertSchema(quizSessions).omit({
+  id: true,
   startedAt: true,
 });
 
 export const insertQuestionResponseSchema = createInsertSchema(questionResponses).omit({
+  id: true,
   answeredAt: true,
 });
 
 export const insertReviewScheduleSchema = createInsertSchema(reviewSchedule).omit({
+  id: true,
   createdAt: true,
   updatedAt: true,
 });
