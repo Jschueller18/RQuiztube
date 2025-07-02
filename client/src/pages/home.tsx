@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload } from "lucide-react";
+import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload, CheckCircle, Trophy } from "lucide-react";
 import { Video } from "@shared/schema";
 
 const VIDEOS_PER_PAGE = 18;
@@ -176,15 +176,31 @@ export default function Home() {
                     <CardTitle className="text-lg line-clamp-2 group-hover:text-blue-600 transition-colors">
                       {video.title}
                     </CardTitle>
-                    {video.category && (
-                      <Badge variant="secondary" className="shrink-0 text-xs">
-                        {video.category}
-                      </Badge>
-                    )}
+                    <div className="flex flex-col gap-1 items-end">
+                      {(video as any).quizCompleted && (
+                        <Badge variant="default" className="text-xs bg-green-600 hover:bg-green-700">
+                          <CheckCircle className="h-3 w-3 mr-1" />
+                          Completed
+                        </Badge>
+                      )}
+                      {video.category && (
+                        <Badge variant="secondary" className="shrink-0 text-xs">
+                          {video.category}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <CardDescription className="flex items-center gap-2 text-sm">
                     <User className="h-3 w-3" />
-                    {video.channelName}
+                    <span className="flex-1">{video.channelName}</span>
+                    {(video as any).lastScore !== null && (
+                      <div className="flex items-center gap-1">
+                        <Trophy className="h-3 w-3 text-yellow-600" />
+                        <span className="text-xs font-medium">
+                          {Math.round((video as any).lastScore * 100)}%
+                        </span>
+                      </div>
+                    )}
                   </CardDescription>
                 </CardHeader>
 
@@ -217,9 +233,25 @@ export default function Home() {
                         Added {new Date(video.createdAt || new Date()).toLocaleDateString()}
                       </span>
                       <Link href={`/quiz?video=${video.id}`}>
-                        <Button size="sm" className="group-hover:bg-blue-600 transition-colors">
-                          <PlayCircle className="h-4 w-4 mr-1" />
-                          Start Quiz
+                        <Button 
+                          size="sm" 
+                          className={
+                            (video as any).quizCompleted 
+                              ? "group-hover:bg-green-600 bg-green-600 hover:bg-green-700 transition-colors" 
+                              : "group-hover:bg-blue-600 transition-colors"
+                          }
+                        >
+                          {(video as any).quizCompleted ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Retake Quiz
+                            </>
+                          ) : (
+                            <>
+                              <PlayCircle className="h-4 w-4 mr-1" />
+                              Start Quiz
+                            </>
+                          )}
                         </Button>
                       </Link>
                     </div>

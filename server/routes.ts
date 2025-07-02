@@ -120,12 +120,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get user videos
+  // Get user videos with quiz completion status
   app.get('/api/videos', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const videos = await storage.getUserVideos(userId);
-      res.json(videos);
+      
+      // Get completion status for each video
+      const videosWithCompletion = await Promise.all(
+        videos.map(async (video) => {
+          const sessions = await storage.getUserQuizSessions(userId);
+          const completedSession = sessions.find(
+            s => s.videoId === video.id && s.completedAt !== null
+          );
+          
+          const questions = await storage.getVideoQuestions(video.id);
+          
+          return {
+            ...video,
+            hasQuiz: questions.length > 0,
+            quizCompleted: !!completedSession,
+            lastScore: completedSession?.score || null,
+            questionCount: questions.length,
+          };
+        })
+      );
+      
+      res.json(videosWithCompletion);
     } catch (error) {
       console.error("Error fetching videos:", error);
       res.status(500).json({ message: "Failed to fetch videos" });
@@ -214,7 +235,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const nextReview = spacedRepetitionService.calculateNextReview(2.5, 0, quality);
 
       await storage.createReviewSchedule({
-        id: nanoid(),
         userId,
         questionId,
         nextReview: nextReview.nextReview,
