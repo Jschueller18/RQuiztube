@@ -16,7 +16,8 @@ export class OpenAIService {
     title: string,
     transcript: string,
     category: string,
-    count: number = 10
+    count: number = 10,
+    existingQuestions: string[] = []
   ): Promise<Array<{
     question: string;
     options: string[];
@@ -24,12 +25,16 @@ export class OpenAIService {
     explanation: string;
     difficulty: string;
   }>> {
+    const existingQuestionsText = existingQuestions.length > 0 
+      ? `\nExisting questions to avoid duplicating:\n${existingQuestions.slice(0, 20).join('\n')}`
+      : '';
+
     const prompt = `
 You are an expert educational content creator. Based on the following YouTube video content, generate ${count} high-quality multiple-choice questions that test understanding and retention of key concepts.
 
 Video Title: ${title}
 Category: ${category}
-Transcript/Content: ${transcript.substring(0, 4000)}
+Transcript/Content: ${transcript.substring(0, 4000)}${existingQuestionsText}
 
 Requirements:
 - Create questions that test comprehension, not just memorization
@@ -38,6 +43,8 @@ Requirements:
 - Mix difficulty levels (easy, medium, hard)
 - Focus on the most important concepts from the content
 - Make questions specific to the video content, not general knowledge
+${existingQuestions.length > 0 ? '- Avoid creating questions similar to the existing ones listed above' : ''}
+- Focus on different aspects, angles, or deeper concepts if similar questions already exist
 
 Respond with a JSON object containing an array called "questions" with this structure:
 {

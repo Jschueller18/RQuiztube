@@ -290,6 +290,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate more questions for a video
+  app.post('/api/videos/:videoId/generate-questions', isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      const { videoId } = req.params;
+      const { count = 5 } = req.body;
+
+      // Verify video belongs to user
+      const video = await storage.getVideo(videoId);
+      if (!video || video.userId !== userId) {
+        return res.status(404).json({ message: "Video not found" });
+      }
+
+      // Get existing questions to avoid duplicates
+      const existingQuestions = await storage.getVideoQuestions(videoId);
+      const existingQuestionTexts = existingQuestions.map(q => q.question.toLowerCase());
+
+      // Generate new questions
+      const generatedQuestions = await openaiService.generateQuestions(
+        video.title,
+        video.transcript || '',
+        video.category || 'general',
+        count + 2, // Generate extra to account for potential duplicates
+        existingQuestionTexts
+      );
+
+      // Filter out duplicates based on question text similarity
+      const newQuestions = generatedQuestions.filter(q => 
+        !existingQuestionTexts.some(existing => 
+          existing.includes(q.question.toLowerCase().substring(0, 50)) ||
+          q.question.toLowerCase().includes(existing.substring(0, 50))
+        )
+      ).slice(0, count);
+
+      if (newQuestions.length === 0) {
+        return res.status(400).json({ message: "No new questions could be generated" });
+      }
+
+      // Save new questions
+      const questionsData = newQuestions.map(q => ({
+        id: nanoid(),
+        videoId: video.id,
+        question: q.question,
+        options: q.options,
+        correctAnswer: q.correctAnswer,
+        explanation: q.explanation,
+        difficulty: q.difficulty,
+      }));
+
+      const questions = await storage.createQuestions(questionsData);
+
+      res.json({ 
+        message: `Generated ${questions.length} new questions`,
+        questions: questions.length,
+        video: video.title
+      });
+    } catch (error) {
+      console.error("Error generating more questions:", error);
+      res.status(500).json({ message: "Failed to generate more questions" });
+    }
+  });
+
   // Get user analytics
   app.get('/api/analytics', isAuthenticated, async (req: any, res) => {
     try {

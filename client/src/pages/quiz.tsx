@@ -5,7 +5,7 @@ import Navigation from "@/components/navigation";
 import QuizInterface from "@/components/quiz-interface";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
@@ -62,6 +62,39 @@ export default function Quiz() {
       toast({
         title: "Error",
         description: "Failed to start quiz",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const generateMoreQuestionsMutation = useMutation({
+    mutationFn: async (videoId: string) => {
+      const response = await apiRequest("POST", `/api/videos/${videoId}/generate-questions`, { count: 5 });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success!",
+        description: `Generated ${data.questions} new questions for ${data.video}`,
+      });
+      // Invalidate cache to refresh video data
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to generate more questions",
         variant: "destructive",
       });
     },
@@ -173,6 +206,21 @@ export default function Quiz() {
                   <BarChart3 className="mr-2 h-4 w-4" />
                   View Analytics
                 </Button>
+                {quizData?.video && (
+                  <Button
+                    variant="outline"
+                    onClick={() => generateMoreQuestionsMutation.mutate(quizData.video.id)}
+                    disabled={generateMoreQuestionsMutation.isPending}
+                    className="border-learning-green text-learning-green hover:bg-learning-green hover:text-white"
+                  >
+                    {generateMoreQuestionsMutation.isPending ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-learning-green mr-2"></div>
+                    ) : (
+                      <Star className="mr-2 h-4 w-4" />
+                    )}
+                    Generate More Questions
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
