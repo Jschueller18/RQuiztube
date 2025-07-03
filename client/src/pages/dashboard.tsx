@@ -89,7 +89,7 @@ export default function Dashboard() {
     if (videos && videos.length > 0) {
       console.log("Videos data received:", videos);
       (videos as any[]).forEach((video: any) => {
-        console.log(`Video "${video.title}": quizCompleted=${video.quizCompleted}, questionCount=${video.questionCount}`);
+        console.log(`Video "${video.title}": quizCompleted=${video.quizCompleted}, hasQuiz=${video.hasQuiz}, questionCount=${video.questionCount}`);
       });
     }
   }, [videos]);
@@ -307,7 +307,7 @@ export default function Dashboard() {
                           <Play className="mr-1 h-3 w-3" />
                           Quiz
                         </Button>
-                        {((video as any).hasQuiz || (video as any).questionCount > 0) && (
+                        {(true) && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -328,10 +328,7 @@ export default function Dashboard() {
                               generateMoreQuestionsMutation.mutate((video as any).id);
                             }}
                             disabled={generateMoreQuestionsMutation.isPending}
-                            className={`${(video as any).quizCompleted 
-                              ? "border-learning-green text-learning-green hover:bg-learning-green hover:text-white" 
-                              : "border-gray-300 text-gray-500 hover:border-gray-400"
-                            }`}
+                            className="border-2 border-red-500 text-red-500 hover:bg-red-500 hover:text-white bg-white"
                             title={(video as any).quizCompleted ? "Generate more questions" : "Complete quiz first to unlock"}
                           >
                             {generateMoreQuestionsMutation.isPending ? (
