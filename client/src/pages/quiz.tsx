@@ -107,15 +107,14 @@ export default function Quiz() {
     }
   }, [videoId, quizData, params?.sessionId]);
 
-  const handleQuizComplete = () => {
+  const handleQuizComplete = (actualResults: {
+    score: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    timeSpent: number;
+  }) => {
     setShowResults(true);
-    // In a real app, you'd get the results from the completed session
-    setResults({
-      score: 85,
-      totalQuestions: 10,
-      correctAnswers: 8,
-      timeSpent: 245, // seconds
-    });
+    setResults(actualResults);
   };
 
   if (isLoading || !isAuthenticated) {

@@ -168,21 +168,25 @@ export default function QuizInterface({ session, questions, video, onComplete }:
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-education-blue via-purple-600 to-learning-green p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="bg-gray-900 text-white py-16 min-h-screen">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8 text-white">
-          <div className="flex items-center space-x-4">
-            <div className="text-sm opacity-90">
-              Question {currentQuestionIndex + 1} of {session.totalQuestions}
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold mb-4">Interactive Quiz Session</h2>
+          <div className="flex items-center justify-center space-x-8">
+            <div className="flex items-center space-x-2">
+              <Clock className="text-review-orange" />
+              <span>{formatTime(timeRemaining)} remaining</span>
             </div>
-            <Progress value={progress} className="w-48 bg-white/20" />
-          </div>
-          <div className="flex items-center space-x-2 text-sm">
-            <Clock size={16} />
-            <span>{formatTime(timeRemaining)}</span>
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="text-learning-green" />
+              <span>Question {currentQuestionIndex + 1} of {session.totalQuestions}</span>
+            </div>
           </div>
         </div>
+
+        {/* Progress Bar */}
+        <Progress value={progress} className="w-full mb-8" />
 
         {/* Quiz Card */}
         <Card className="bg-white text-gray-900 shadow-lg">
@@ -219,72 +223,80 @@ export default function QuizInterface({ session, questions, video, onComplete }:
                             ? "border-education-blue bg-blue-50"
                             : "border-gray-200 hover:border-education-blue hover:bg-blue-50"
                         }`}
-                        onClick={() => setSelectedAnswer(index)}
                       >
                         <input
                           type="radio"
-                          name="answer"
+                          name="question"
+                          className="w-5 h-5 text-education-blue"
                           checked={selectedAnswer === index}
                           onChange={() => setSelectedAnswer(index)}
-                          className="sr-only"
                         />
-                        <div className={`w-4 h-4 rounded-full border-2 mr-3 ${
-                          selectedAnswer === index ? "border-education-blue bg-education-blue" : "border-gray-300"
-                        }`}>
-                          {selectedAnswer === index && (
-                            <div className="w-2 h-2 bg-white rounded-full m-0.5" />
-                          )}
-                        </div>
-                        <span className="text-gray-900">{option}</span>
+                        <span className="ml-3 text-lg">{option}</span>
                       </label>
                     ))}
                   </div>
                 </div>
 
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <Button
-                    variant="outline"
-                    onClick={handleSkip}
-                    className="flex items-center"
+                    variant="ghost"
+                    onClick={() => currentQuestionIndex > 0 && setCurrentQuestionIndex(prev => prev - 1)}
+                    disabled={currentQuestionIndex === 0}
                   >
-                    <SkipForward className="mr-2 h-4 w-4" />
-                    Skip
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Previous
                   </Button>
-                  
-                  <Button
-                    onClick={handleSubmitAnswer}
-                    disabled={selectedAnswer === null || answerMutation.isPending}
-                    className="bg-education-blue hover:bg-education-dark-blue flex items-center"
-                  >
-                    {answerMutation.isPending ? "Submitting..." : "Submit Answer"}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
+                  <div className="flex space-x-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleSkip}
+                    >
+                      <SkipForward className="mr-2 h-4 w-4" />
+                      Skip
+                    </Button>
+                    <Button
+                      onClick={handleSubmitAnswer}
+                      disabled={selectedAnswer === null || answerMutation.isPending}
+                      className="bg-education-blue hover:bg-education-dark-blue"
+                    >
+                      Submit Answer
+                    </Button>
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="space-y-6">
-                <div className={`p-4 rounded-lg ${feedback?.correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
-                  <div className="flex items-center mb-2">
-                    <CheckCircle className={`mr-2 h-5 w-5 ${feedback?.correct ? 'text-green-600' : 'text-red-600'}`} />
-                    <span className={`font-semibold ${feedback?.correct ? 'text-green-800' : 'text-red-800'}`}>
-                      {feedback?.correct ? 'Correct!' : 'Incorrect'}
-                    </span>
-                  </div>
-                  {!feedback?.correct && (
-                    <p className="text-sm text-gray-600 mb-2">
-                      The correct answer was: <strong>{currentQuestion.options[feedback?.correctAnswer || 0]}</strong>
-                    </p>
-                  )}
-                  <p className="text-sm text-gray-700">{feedback?.explanation}</p>
+              /* Feedback Panel */
+              <div className={`rounded-xl p-6 ${
+                feedback?.correct ? "bg-learning-green text-white" : "bg-red-500 text-white"
+              }`}>
+                <div className="flex items-center space-x-3 mb-4">
+                  <CheckCircle className="text-2xl" />
+                  <h4 className="text-xl font-semibold">
+                    {feedback?.correct ? "Correct!" : "Incorrect"}
+                  </h4>
                 </div>
-
-                <div className="flex justify-center">
+                <p className="mb-4">{feedback?.explanation}</p>
+                {!feedback?.correct && (
+                  <p className="mb-4">
+                    Correct answer: {currentQuestion.options[feedback?.correctAnswer || 0]}
+                  </p>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-sm opacity-90">
+                    Question {currentQuestionIndex + 1} of {session.totalQuestions} completed
+                  </span>
                   <Button
                     onClick={handleNextQuestion}
-                    className="bg-education-blue hover:bg-education-dark-blue flex items-center"
+                    className="bg-white text-gray-900 hover:bg-gray-100"
                   >
-                    {currentQuestionIndex < questions.length - 1 ? 'Next Question' : 'Complete Quiz'}
-                    <ArrowRight className="ml-2 h-4 w-4" />
+                    {currentQuestionIndex < questions.length - 1 ? (
+                      <>
+                        Next Question
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    ) : (
+                      "Complete Quiz"
+                    )}
                   </Button>
                 </div>
               </div>

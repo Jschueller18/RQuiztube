@@ -1,5 +1,6 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useLocation } from "wouter";
 import Navigation from "@/components/navigation";
 import VideoInput from "@/components/video-input";
@@ -20,13 +21,47 @@ import {
   Play,
   Plus,
   Clock,
-  AlertCircle
+  AlertCircle,
+  Star
 } from "lucide-react";
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+
+  const generateMoreQuestionsMutation = useMutation({
+    mutationFn: async (videoId: string) => {
+      const response = await apiRequest("POST", `/api/videos/${videoId}/generate-questions`, { count: 5 });
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Success!",
+        description: `Generated ${data.questions} new questions for ${data.video}`,
+      });
+      // Invalidate cache to refresh video data
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error as Error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to generate more questions",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Redirect to home if not authenticated
   useEffect(() => {
@@ -245,15 +280,38 @@ export default function Dashboard() {
                         <p className="text-sm text-gray-600">
                           {video.channelName} • {Math.round(video.duration / 60)} minutes
                         </p>
+                        {video.quizCompleted && (
+                          <p className="text-xs text-learning-green mt-1">
+                            ✓ Quiz completed • {video.questionCount} questions
+                          </p>
+                        )}
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => handleStartQuiz(video.id)}
-                        className="bg-education-blue hover:bg-education-dark-blue"
-                      >
-                        <Play className="mr-1 h-3 w-3" />
-                        Quiz
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleStartQuiz(video.id)}
+                          className="bg-education-blue hover:bg-education-dark-blue"
+                        >
+                          <Play className="mr-1 h-3 w-3" />
+                          Quiz
+                        </Button>
+                        {video.quizCompleted && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => generateMoreQuestionsMutation.mutate(video.id)}
+                            disabled={generateMoreQuestionsMutation.isPending}
+                            className="border-learning-green text-learning-green hover:bg-learning-green hover:text-white"
+                          >
+                            {generateMoreQuestionsMutation.isPending ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-learning-green mr-1"></div>
+                            ) : (
+                              <Plus className="mr-1 h-3 w-3" />
+                            )}
+                            More
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
