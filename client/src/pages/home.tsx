@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload, CheckCircle, Trophy } from "lucide-react";
+import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload, CheckCircle, Trophy, Plus } from "lucide-react";
 import { Video } from "@shared/schema";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 const VIDEOS_PER_PAGE = 18;
 
@@ -16,9 +18,31 @@ export default function Home() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("newest");
+  const { toast } = useToast();
 
   const { data: videos = [], isLoading } = useQuery<Video[]>({
     queryKey: ["/api/videos"],
+  });
+
+  const generateMoreQuestionsMutation = useMutation({
+    mutationFn: async (videoId: string) => {
+      const response = await apiRequest(`/api/videos/${videoId}/generate-questions`, "POST", { count: 5 });
+      return response;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Questions Generated",
+        description: "5 new questions have been added to this video's quiz!",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate questions",
+        variant: "destructive",
+      });
+    },
   });
 
   // Filter and sort videos
@@ -232,28 +256,60 @@ export default function Home() {
                       <span className="text-xs text-gray-500">
                         Added {new Date(video.createdAt || new Date()).toLocaleDateString()}
                       </span>
-                      <Link href={`/quiz?video=${video.id}`}>
-                        <Button 
-                          size="sm" 
-                          className={
-                            (video as any).quizCompleted 
-                              ? "group-hover:bg-green-600 bg-green-600 hover:bg-green-700 transition-colors" 
-                              : "group-hover:bg-blue-600 transition-colors"
-                          }
-                        >
-                          {(video as any).quizCompleted ? (
-                            <>
-                              <CheckCircle className="h-4 w-4 mr-1" />
-                              Retake Quiz
-                            </>
-                          ) : (
-                            <>
-                              <PlayCircle className="h-4 w-4 mr-1" />
-                              Start Quiz
-                            </>
-                          )}
-                        </Button>
-                      </Link>
+                      <div className="flex space-x-2">
+                        <Link href={`/quiz?video=${video.id}`}>
+                          <Button 
+                            size="sm" 
+                            className={
+                              (video as any).quizCompleted 
+                                ? "group-hover:bg-green-600 bg-green-600 hover:bg-green-700 transition-colors" 
+                                : "group-hover:bg-blue-600 transition-colors"
+                            }
+                          >
+                            {(video as any).quizCompleted ? (
+                              <>
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Retake Quiz
+                              </>
+                            ) : (
+                              <>
+                                <PlayCircle className="h-4 w-4 mr-1" />
+                                Start Quiz
+                              </>
+                            )}
+                          </Button>
+                        </Link>
+                        {((video as any).hasQuiz || (video as any).questionCount > 0) && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              if (!(video as any).quizCompleted) {
+                                toast({
+                                  title: "Complete Quiz First",
+                                  description: "You need to complete the quiz before generating more questions.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              generateMoreQuestionsMutation.mutate(video.id);
+                            }}
+                            disabled={generateMoreQuestionsMutation.isPending}
+                            className={`${(video as any).quizCompleted 
+                              ? "border-learning-green text-learning-green hover:bg-learning-green hover:text-white" 
+                              : "border-gray-300 text-gray-500 hover:border-gray-400"
+                            }`}
+                            title={(video as any).quizCompleted ? "Generate more questions" : "Complete quiz first to unlock"}
+                          >
+                            {generateMoreQuestionsMutation.isPending ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-learning-green mr-1"></div>
+                            ) : (
+                              <Plus className="mr-1 h-3 w-3" />
+                            )}
+                            More
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
