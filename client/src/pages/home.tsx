@@ -26,7 +26,7 @@ export default function Home() {
 
   const generateMoreQuestionsMutation = useMutation({
     mutationFn: async (videoId: string) => {
-      const response = await apiRequest(`/api/videos/${videoId}/generate-questions`, "POST", { count: 5 });
+      const response = await apiRequest("POST", `/api/videos/${videoId}/generate-questions`, { count: 5 });
       return response;
     },
     onSuccess: () => {

@@ -1,0 +1,249 @@
+# 🤖 AI Coding Agent Prompt: F1.1 Core UI Components Library
+
+## **🎯 Mission Statement**
+You are an expert frontend developer tasked with creating the foundational UI components for Personal Potions V2, a custom electrolyte formula calculator. Your goal is to build a comprehensive, reusable component library that will power the entire application.
+
+## **📋 Context & Requirements**
+
+### **Project Overview**
+- **Product**: Personal Potions V2 - Custom electrolyte formula calculator
+- **Tech Stack**: Next.js 15.3.4, TypeScript, Tailwind CSS, shadcn/ui
+- **Timeline**: 90 minutes for this chunk
+- **Architecture**: Component-driven with consistent design system
+
+### **Current Codebase State**
+- **Location**: `/personal-potions-v2/`
+- **Existing**: Basic Next.js setup with shadcn/ui initialized
+- **Dependencies**: Already installed - shadcn/ui, Tailwind CSS, TypeScript
+- **Components Directory**: `/personal-potions-v2/components/`
+- **Existing Component**: `ProgressBar.tsx` (reference for patterns)
+
+### **Design Requirements**
+- **Brand**: Health-focused, professional, trustworthy
+- **Color Scheme**: Green primary (health/natural), blue accents (trust/science)
+- **UX**: Clean, intuitive, mobile-first responsive
+- **Accessibility**: WCAG 2.1 compliant, keyboard navigation, screen reader support
+
+## **🔧 Technical Specifications**
+
+### **Component Architecture**
+```typescript
+// Follow this pattern for all components
+export interface ComponentProps {
+  // Specific props
+  className?: string;
+  children?: React.ReactNode;
+}
+
+export const ComponentName = React.forwardRef<HTMLElement, ComponentProps>(
+  ({ className, ...props }, ref) => {
+    return (
+      <div ref={ref} className={cn("base-styles", className)} {...props}>
+        {/* Component content */}
+      </div>
+    );
+  }
+);
+ComponentName.displayName = "ComponentName";
+```
+
+### **Required Component Categories**
+
+#### **1. Form Components** (Essential for survey)
+- **SurveyInput**: Text/number inputs with validation states
+- **SurveySelect**: Dropdown selects with search capability
+- **SurveyRadio**: Radio button groups for multiple choice
+- **SurveyCheckbox**: Checkbox components with labels
+- **SurveySlider**: Range sliders for numeric values
+- **FormField**: Wrapper with label, error states, help text
+
+#### **2. Navigation Components**
+- **StepIndicator**: Progress indicator for multi-step survey
+- **BackButton**: Consistent back navigation
+- **NextButton**: Primary action button for progression
+- **NavBar**: Top navigation bar
+- **Breadcrumb**: Path indicator component
+
+#### **3. Display Components**
+- **ResultCard**: Display calculation results
+- **InfoCard**: General information display
+- **AlertBox**: Success/error/warning messages
+- **LoadingSpinner**: Consistent loading states
+- **SkeletonCard**: Loading placeholders
+
+#### **4. Layout Components**
+- **Container**: Consistent page containers
+- **Section**: Content section wrapper
+- **Grid**: Responsive grid system
+- **Stack**: Vertical/horizontal stacking
+- **Divider**: Section separators
+
+## **📦 Deliverables**
+
+Create the following files in `/personal-potions-v2/components/`:
+
+### **Component Files**
+- [ ] `ui/survey-input.tsx` - Form input component
+- [ ] `ui/survey-select.tsx` - Dropdown select component
+- [ ] `ui/survey-radio.tsx` - Radio button group
+- [ ] `ui/survey-checkbox.tsx` - Checkbox component
+- [ ] `ui/survey-slider.tsx` - Range slider component
+- [ ] `ui/form-field.tsx` - Form field wrapper
+- [ ] `ui/step-indicator.tsx` - Multi-step progress indicator
+- [ ] `ui/back-button.tsx` - Back navigation button
+- [ ] `ui/next-button.tsx` - Primary action button
+- [ ] `ui/nav-bar.tsx` - Top navigation bar
+- [ ] `ui/breadcrumb.tsx` - Breadcrumb navigation
+- [ ] `ui/result-card.tsx` - Results display card
+- [ ] `ui/info-card.tsx` - Information display card
+- [ ] `ui/alert-box.tsx` - Alert/notification component
+- [ ] `ui/loading-spinner.tsx` - Loading animation
+- [ ] `ui/skeleton-card.tsx` - Loading skeleton
+- [ ] `ui/container.tsx` - Page container
+- [ ] `ui/section.tsx` - Content section
+- [ ] `ui/grid.tsx` - Responsive grid
+- [ ] `ui/stack.tsx` - Stacking layout
+- [ ] `ui/divider.tsx` - Section divider
+
+### **Configuration Files**
+- [ ] `ui/index.ts` - Export all components
+- [ ] `lib/utils.ts` - Utility functions (if not exists)
+
+### **Example Usage File**
+- [ ] `examples/component-showcase.tsx` - Demo all components
+
+## **🎨 Design Tokens**
+
+### **Colors** (Use Tailwind classes)
+```typescript
+// Primary Colors
+const colors = {
+  primary: "bg-green-600 hover:bg-green-700", // Health/Natural
+  secondary: "bg-blue-600 hover:bg-blue-700", // Trust/Science
+  accent: "bg-emerald-500 hover:bg-emerald-600", // Highlights
+  neutral: "bg-gray-100 hover:bg-gray-200", // Secondary actions
+  danger: "bg-red-600 hover:bg-red-700", // Errors
+  warning: "bg-yellow-500 hover:bg-yellow-600", // Warnings
+  success: "bg-green-500 hover:bg-green-600", // Success states
+};
+```
+
+### **Typography**
+```typescript
+const typography = {
+  heading: "text-2xl font-bold text-gray-900",
+  subheading: "text-lg font-semibold text-gray-800",
+  body: "text-base text-gray-700",
+  small: "text-sm text-gray-600",
+  label: "text-sm font-medium text-gray-700",
+};
+```
+
+### **Spacing & Sizing**
+```typescript
+const spacing = {
+  component: "p-4", // Standard component padding
+  section: "py-8", // Section spacing
+  container: "max-w-4xl mx-auto px-4", // Container sizing
+};
+```
+
+## **🔍 Component Specifications**
+
+### **SurveyInput Example**
+```typescript
+interface SurveyInputProps {
+  label: string;
+  type?: 'text' | 'number' | 'email';
+  placeholder?: string;
+  value: string;
+  onChange: (value: string) => void;
+  error?: string;
+  helpText?: string;
+  required?: boolean;
+  disabled?: boolean;
+  className?: string;
+}
+```
+
+### **StepIndicator Example**
+```typescript
+interface StepIndicatorProps {
+  currentStep: number;
+  totalSteps: number;
+  steps: Array<{
+    label: string;
+    completed: boolean;
+  }>;
+  className?: string;
+}
+```
+
+### **ResultCard Example**
+```typescript
+interface ResultCardProps {
+  title: string;
+  value: string | number;
+  unit?: string;
+  description?: string;
+  highlight?: boolean;
+  className?: string;
+}
+```
+
+## **✅ Success Criteria**
+
+### **Functional Requirements**
+- [ ] All 21 components render without errors
+- [ ] Components accept all specified props
+- [ ] Consistent styling across all components
+- [ ] Mobile-responsive design (breakpoints: sm, md, lg, xl)
+- [ ] Proper TypeScript interfaces for all props
+- [ ] Accessible markup (ARIA labels, keyboard navigation)
+
+### **Code Quality Standards**
+- [ ] Clean, readable code with proper TypeScript
+- [ ] Consistent naming conventions
+- [ ] Proper component composition patterns
+- [ ] Reusable and maintainable architecture
+- [ ] No console errors or warnings
+
+### **Design Standards**
+- [ ] Consistent spacing and typography
+- [ ] Proper color contrast ratios
+- [ ] Loading states and animations
+- [ ] Error and validation states
+- [ ] Hover and focus states
+
+## **📖 Implementation Guidelines**
+
+### **1. Start with Foundation**
+Begin with utility components (Container, Section, Stack) that other components will use.
+
+### **2. Build Form Components**
+Survey components are critical - ensure they handle all input types and validation states.
+
+### **3. Add Navigation**
+Step indicator and navigation buttons are essential for the multi-step survey flow.
+
+### **4. Create Display Components**
+Result cards and info cards will be used throughout the application.
+
+### **5. Test and Refine**
+Create the showcase file to validate all components work together.
+
+## **🚀 Getting Started**
+
+1. **Navigate to project**: `cd personal-potions-v2`
+2. **Install dependencies**: `npm install` (if needed)
+3. **Start development**: `npm run dev`
+4. **Create components**: Start with `/components/ui/` directory
+5. **Test frequently**: Use the showcase file to validate components
+
+## **📞 Next Steps**
+After completion, your components will be used by:
+- **F1.2**: Context providers (will wrap your components)
+- **F1.3**: Authentication components (will use your form components)
+- **F1.4**: Survey pages (will heavily use your survey components)
+
+Your foundation is critical for the entire application's success. Build it well! 🎯
