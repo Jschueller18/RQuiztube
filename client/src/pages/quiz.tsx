@@ -115,6 +115,8 @@ export default function Quiz() {
   }) => {
     setShowResults(true);
     setResults(actualResults);
+    // Invalidate videos cache so dashboard updates completion status
+    queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
   };
 
   if (isLoading || !isAuthenticated) {

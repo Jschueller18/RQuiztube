@@ -136,13 +136,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           const questions = await storage.getVideoQuestions(video.id);
           
-          return {
+          const videoWithCompletion = {
             ...video,
             hasQuiz: questions.length > 0,
             quizCompleted: !!completedSession,
             lastScore: completedSession?.score || null,
             questionCount: questions.length,
           };
+          
+          // Debug logging
+          if (completedSession) {
+            console.log(`Video ${video.title} has completed session:`, {
+              sessionId: completedSession.id,
+              completedAt: completedSession.completedAt,
+              score: completedSession.score
+            });
+          }
+          
+          return videoWithCompletion;
         })
       );
       

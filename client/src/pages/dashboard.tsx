@@ -84,6 +84,16 @@ export default function Dashboard() {
     retry: false,
   });
 
+  // Debug videos data
+  useEffect(() => {
+    if (videos && videos.length > 0) {
+      console.log("Videos data received:", videos);
+      (videos as any[]).forEach((video: any) => {
+        console.log(`Video "${video.title}": quizCompleted=${video.quizCompleted}, questionCount=${video.questionCount}`);
+      });
+    }
+  }, [videos]);
+
   const { data: dueReviews = [], isLoading: reviewsLoading } = useQuery({
     queryKey: ["/api/reviews/due"],
     enabled: isAuthenticated,
@@ -280,11 +290,13 @@ export default function Dashboard() {
                         <p className="text-sm text-gray-600">
                           {video.channelName} • {Math.round(video.duration / 60)} minutes
                         </p>
-                        {video.quizCompleted && (
-                          <p className="text-xs text-learning-green mt-1">
-                            ✓ Quiz completed • {video.questionCount} questions
-                          </p>
-                        )}
+                        <p className="text-xs mt-1">
+                          {video.quizCompleted ? (
+                            <span className="text-learning-green">✓ Quiz completed • {video.questionCount} questions</span>
+                          ) : (
+                            <span className="text-gray-500">Quiz not completed yet</span>
+                          )}
+                        </p>
                       </div>
                       <div className="flex space-x-2">
                         <Button
@@ -295,20 +307,34 @@ export default function Dashboard() {
                           <Play className="mr-1 h-3 w-3" />
                           Quiz
                         </Button>
-                        {video.quizCompleted && (
+                        {video.hasQuiz && (
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => generateMoreQuestionsMutation.mutate(video.id)}
+                            onClick={() => {
+                              if (!video.quizCompleted) {
+                                toast({
+                                  title: "Complete Quiz First",
+                                  description: "You need to complete the quiz before generating more questions.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              generateMoreQuestionsMutation.mutate(video.id);
+                            }}
                             disabled={generateMoreQuestionsMutation.isPending}
-                            className="border-learning-green text-learning-green hover:bg-learning-green hover:text-white"
+                            className={`${video.quizCompleted 
+                              ? "border-learning-green text-learning-green hover:bg-learning-green hover:text-white" 
+                              : "border-gray-300 text-gray-500 hover:border-gray-400"
+                            }`}
+                            title={video.quizCompleted ? "Generate more questions" : "Complete quiz first to unlock"}
                           >
                             {generateMoreQuestionsMutation.isPending ? (
                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-learning-green mr-1"></div>
                             ) : (
                               <Plus className="mr-1 h-3 w-3" />
                             )}
-                            More
+                            More Questions
                           </Button>
                         )}
                       </div>

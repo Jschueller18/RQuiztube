@@ -100,6 +100,7 @@ QuizTube is a full-stack web application that transforms passive YouTube video c
 ## Changelog
 
 Changelog:
+- July 3, 2025. Added "Generate More Questions" functionality for videos with duplicate detection and real quiz performance tracking
 - July 2, 2025. Converted from in-memory storage to PostgreSQL database for data persistence
 - June 30, 2025. Initial setup
 
