@@ -307,12 +307,17 @@ export default function Dashboard() {
                           <Play className="mr-1 h-3 w-3" />
                           Quiz
                         </Button>
-                        {video.hasQuiz && (
+                        {((video as any).hasQuiz || (video as any).questionCount > 0) && (
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => {
-                              if (!video.quizCompleted) {
+                              console.log(`Generating more questions for video: ${(video as any).title}`, {
+                                hasQuiz: (video as any).hasQuiz,
+                                quizCompleted: (video as any).quizCompleted,
+                                questionCount: (video as any).questionCount
+                              });
+                              if (!(video as any).quizCompleted) {
                                 toast({
                                   title: "Complete Quiz First",
                                   description: "You need to complete the quiz before generating more questions.",
@@ -320,21 +325,21 @@ export default function Dashboard() {
                                 });
                                 return;
                               }
-                              generateMoreQuestionsMutation.mutate(video.id);
+                              generateMoreQuestionsMutation.mutate((video as any).id);
                             }}
                             disabled={generateMoreQuestionsMutation.isPending}
-                            className={`${video.quizCompleted 
+                            className={`${(video as any).quizCompleted 
                               ? "border-learning-green text-learning-green hover:bg-learning-green hover:text-white" 
                               : "border-gray-300 text-gray-500 hover:border-gray-400"
                             }`}
-                            title={video.quizCompleted ? "Generate more questions" : "Complete quiz first to unlock"}
+                            title={(video as any).quizCompleted ? "Generate more questions" : "Complete quiz first to unlock"}
                           >
                             {generateMoreQuestionsMutation.isPending ? (
                               <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-learning-green mr-1"></div>
                             ) : (
                               <Plus className="mr-1 h-3 w-3" />
                             )}
-                            More Questions
+                            {(video as any).quizCompleted ? "More" : "More (Quiz First)"}
                           </Button>
                         )}
                       </div>
