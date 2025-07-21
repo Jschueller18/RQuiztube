@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { setupAuth, isAuthenticated } from "./replitAuth";
+// DISABLED FOR RAILWAY: import { setupAuth, isAuthenticated } from "./replitAuth";
 import { YouTubeService } from "./services/youtube";
 import { OpenAIService } from "./services/openai";
 import { SpacedRepetitionService } from "./services/spaced-repetition";
@@ -9,17 +9,45 @@ import { GoogleDriveService } from "./services/google-drive";
 import { insertVideoSchema, insertQuizSessionSchema, insertQuestionResponseSchema } from "@shared/schema";
 import { nanoid } from "nanoid";
 
+// Mock authentication middleware for Railway deployment
+const mockAuth = async (req: any, res: any, next: any) => {
+  // Create a consistent test user
+  req.user = {
+    claims: {
+      sub: "railway-test-user",
+      email: "test@railway.app",
+      first_name: "Railway",
+      last_name: "User"
+    }
+  };
+  req.isAuthenticated = () => true;
+  
+  // Ensure the test user exists in the database
+  try {
+    await storage.upsertUser({
+      id: req.user.claims.sub,
+      email: req.user.claims.email,
+      firstName: req.user.claims.first_name,
+      lastName: req.user.claims.last_name,
+    });
+  } catch (error) {
+    console.error("Error creating mock user:", error);
+  }
+  
+  next();
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
+  // DISABLED FOR RAILWAY: Auth middleware
+  // await setupAuth(app);
 
   const youtubeService = new YouTubeService();
   const openaiService = new OpenAIService();
   const spacedRepetitionService = new SpacedRepetitionService();
   const googleDriveService = new GoogleDriveService();
 
-  // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  // Auth routes - using mock auth
+  app.get('/api/auth/user', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const user = await storage.getUser(userId);
@@ -31,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // User preferences
-  app.put('/api/user/preferences', isAuthenticated, async (req: any, res) => {
+  app.put('/api/user/preferences', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { learningGoals, preferredCategories, reviewFrequency, notificationSettings } = req.body;
@@ -51,7 +79,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Video analysis
-  app.post('/api/videos/analyze', isAuthenticated, async (req: any, res) => {
+  app.post('/api/videos/analyze', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { url } = req.body;
@@ -121,7 +149,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user videos with quiz completion status
-  app.get('/api/videos', isAuthenticated, async (req: any, res) => {
+  app.get('/api/videos', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const videos = await storage.getUserVideos(userId);
@@ -165,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Start quiz session
-  app.post('/api/quiz/start', isAuthenticated, async (req: any, res) => {
+  app.post('/api/quiz/start', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { videoId } = req.body;
@@ -209,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Submit quiz answer
-  app.post('/api/quiz/answer', isAuthenticated, async (req: any, res) => {
+  app.post('/api/quiz/answer', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { sessionId, questionId, userAnswer, responseTime } = req.body;
@@ -266,7 +294,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Complete quiz session
-  app.post('/api/quiz/complete', isAuthenticated, async (req: any, res) => {
+  app.post('/api/quiz/complete', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { sessionId } = req.body;
@@ -290,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get due reviews
-  app.get('/api/reviews/due', isAuthenticated, async (req: any, res) => {
+  app.get('/api/reviews/due', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const dueReviews = await storage.getDueReviews(userId);
@@ -302,7 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Generate more questions for a video
-  app.post('/api/videos/:videoId/generate-questions', isAuthenticated, async (req: any, res) => {
+  app.post('/api/videos/:videoId/generate-questions', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { videoId } = req.params;
@@ -364,7 +392,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get user analytics
-  app.get('/api/analytics', isAuthenticated, async (req: any, res) => {
+  app.get('/api/analytics', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const stats = await storage.getUserStats(userId);
@@ -393,7 +421,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Watch history import endpoint
-  app.post('/api/import-watch-history', isAuthenticated, async (req: any, res) => {
+  app.post('/api/import-watch-history', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { watchHistory } = req.body;
@@ -476,7 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import watch history from HTML file (Google Takeout format)
-  app.post('/api/import/html', isAuthenticated, async (req: any, res) => {
+  app.post('/api/import/html', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { htmlContent } = req.body;
@@ -567,7 +595,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import structured educational video data (JSON format)
-  app.post('/api/import/educational-videos', isAuthenticated, async (req: any, res) => {
+  app.post('/api/import/educational-videos', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { videoData } = req.body;
@@ -727,7 +755,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Google Drive automation endpoints
-  app.post('/api/automation/create-drive-folder', isAuthenticated, async (req: any, res) => {
+  app.post('/api/automation/create-drive-folder', mockAuth, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.user.claims.sub);
       if (!user?.email) {
@@ -752,7 +780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/automation/drive-files/:folderId?', isAuthenticated, async (req: any, res) => {
+  app.get('/api/automation/drive-files/:folderId?', mockAuth, async (req: any, res) => {
     try {
       const { folderId } = req.params;
       const files = await googleDriveService.listTakeoutFiles(folderId);
@@ -763,7 +791,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/automation/process-drive-file', isAuthenticated, async (req: any, res) => {
+  app.post('/api/automation/process-drive-file', mockAuth, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
       const { fileId } = req.body;
