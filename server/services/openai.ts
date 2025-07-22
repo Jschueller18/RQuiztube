@@ -72,11 +72,8 @@ Respond with a JSON object containing an array called "questions" with this stru
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 3000,
+        system: "You are an expert educational content creator specializing in creating effective learning assessments.",
         messages: [
-          {
-            role: "system",
-            content: "You are an expert educational content creator specializing in creating effective learning assessments."
-          },
           {
             role: "user",
             content: prompt
