@@ -6,10 +6,12 @@ export class OpenAIService {
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error("Anthropic API key not provided");
+      console.warn("Anthropic API key not provided - question generation will not work");
+      // @ts-ignore - We'll handle the undefined client in the methods
+      this.client = null;
+    } else {
+      this.client = new Anthropic({ apiKey });
     }
-    
-    this.client = new Anthropic({ apiKey });
   }
 
   async generateQuestions(
@@ -25,6 +27,11 @@ export class OpenAIService {
     explanation: string;
     difficulty: string;
   }>> {
+    if (!this.client) {
+      console.error("Cannot generate questions: Anthropic client not initialized (missing API key)");
+      return [];
+    }
+
     const existingQuestionsText = existingQuestions.length > 0 
       ? `\nExisting questions to avoid duplicating:\n${existingQuestions.slice(0, 20).join('\n')}`
       : '';
@@ -61,6 +68,7 @@ Respond with a JSON object containing an array called "questions" with this stru
 `;
 
     try {
+      console.log(`Generating questions for video: ${title}`);
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 3000,
@@ -77,28 +85,58 @@ Respond with a JSON object containing an array called "questions" with this stru
         temperature: 0.7,
       });
 
-      const result = JSON.parse(response.content[0].text || "{}");
+      if (!response.content || !response.content[0] || !response.content[0].text) {
+        console.error("Empty response from Anthropic API");
+        return [];
+      }
+
+      let result;
+      try {
+        result = JSON.parse(response.content[0].text);
+      } catch (parseError) {
+        console.error("Failed to parse Anthropic response as JSON:", response.content[0].text);
+        return [];
+      }
       
       if (!result.questions || !Array.isArray(result.questions)) {
-        throw new Error("Invalid response format from Anthropic");
+        console.error("Invalid response format from Anthropic:", result);
+        return [];
       }
 
       // Validate and clean up the questions
-      return result.questions.map((q: any) => ({
+      const validatedQuestions = result.questions.map((q: any) => ({
         question: q.question || "",
         options: Array.isArray(q.options) ? q.options.slice(0, 4) : [],
         correctAnswer: Math.max(0, Math.min(3, parseInt(q.correctAnswer) || 0)),
         explanation: q.explanation || "",
         difficulty: ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium",
       })).filter((q: any) => q.question && q.options.length === 4);
+
+      if (validatedQuestions.length === 0) {
+        console.error("No valid questions in Anthropic response:", result.questions);
+      } else {
+        console.log(`Successfully generated ${validatedQuestions.length} questions for video: ${title}`);
+      }
+      
+      return validatedQuestions;
       
     } catch (error) {
-      console.error("Error generating questions:", error);
-      throw new Error("Failed to generate questions from content");
+      console.error("Error generating questions:", {
+        error: error instanceof Error ? error.message : error,
+        title,
+        category,
+        transcriptLength: transcript.length
+      });
+      return [];
     }
   }
 
   async categorizeContent(title: string, description: string): Promise<string> {
+    if (!this.client) {
+      console.warn("Cannot categorize content: Anthropic client not initialized (missing API key)");
+      return "general";
+    }
+
     const prompt = `
 Categorize this YouTube video content into one of these categories:
 - programming
@@ -128,7 +166,10 @@ Respond with just the category name.
       
       return validCategories.includes(category) ? category : "general";
     } catch (error) {
-      console.error("Error categorizing content:", error);
+      console.error("Error categorizing content:", {
+        error: error instanceof Error ? error.message : error,
+        title
+      });
       return "general";
     }
   }
