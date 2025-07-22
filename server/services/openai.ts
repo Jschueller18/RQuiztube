@@ -100,11 +100,8 @@ If you cannot generate high-quality questions that focus on core concepts and ke
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 3000,
+        system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array.",
         messages: [
-          {
-            role: "system",
-            content: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array."
-          },
           {
             role: "user",
             content: prompt
@@ -176,11 +173,8 @@ IMPORTANT: Only categorize if you are confident about the content's primary focu
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 50,
+        system: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain.",
         messages: [
-          {
-            role: "system",
-            content: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain."
-          },
           {
             role: "user",
             content: prompt
