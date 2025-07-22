@@ -10,6 +10,7 @@ import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Boo
 import { Video } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import Navigation from "@/components/navigation";
 
 const VIDEOS_PER_PAGE = 18;
 
@@ -108,7 +109,9 @@ export default function Home() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <>
+      <Navigation />
+      <div className="container mx-auto px-4 py-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Your Learning Library</h1>
@@ -375,6 +378,7 @@ export default function Home() {
           </div>
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
