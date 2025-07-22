@@ -6,12 +6,10 @@ export class OpenAIService {
   constructor() {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.warn("Anthropic API key not provided - question generation will not work");
-      // @ts-ignore - We'll handle the undefined client in the methods
-      this.client = null;
-    } else {
-      this.client = new Anthropic({ apiKey });
+      throw new Error("Anthropic API key not provided");
     }
+    
+    this.client = new Anthropic({ apiKey });
   }
 
   async generateQuestions(
@@ -27,53 +25,86 @@ export class OpenAIService {
     explanation: string;
     difficulty: string;
   }>> {
-    if (!this.client) {
-      console.error("Cannot generate questions: Anthropic client not initialized (missing API key)");
-      return [];
-    }
-
     const existingQuestionsText = existingQuestions.length > 0 
       ? `\nExisting questions to avoid duplicating:\n${existingQuestions.slice(0, 20).join('\n')}`
       : '';
 
     const prompt = `
-You are an expert educational content creator. Based on the following YouTube video content, generate ${count} high-quality multiple-choice questions that test understanding and retention of key concepts.
+You are an expert educational content creator specializing in creating effective learning assessments. Your task is to generate high-quality multiple-choice questions that focus on the MOST IMPORTANT and ACTIONABLE insights from the video content.
 
 Video Title: ${title}
 Category: ${category}
 Transcript/Content: ${transcript.substring(0, 4000)}${existingQuestionsText}
 
-Requirements:
-- Create questions that test comprehension, not just memorization
-- Include 4 multiple choice options (A, B, C, D) for each question
-- Provide clear explanations for correct answers
-- Mix difficulty levels (easy, medium, hard)
-- Focus on the most important concepts from the content
-- Make questions specific to the video content, not general knowledge
-${existingQuestions.length > 0 ? '- Avoid creating questions similar to the existing ones listed above' : ''}
-- Focus on different aspects, angles, or deeper concepts if similar questions already exist
+IMPORTANT GUIDELINES:
 
-Respond with a JSON object containing an array called "questions" with this structure:
+Content Priority and Focus:
+- Focus ONLY on the core concepts, key insights, and main learning objectives
+- Target actionable knowledge that viewers can apply
+- Identify and test the most important learnings from the video
+- DO NOT create questions about trivial details like:
+  * Names of guests, authors, or speakers
+  * Specific dates or timestamps
+  * Anecdotal examples (unless they're central to understanding a key concept)
+  * Minor details that don't contribute to core learning
+- Each question should test understanding of a significant concept or insight
+
+Content Understanding:
+- Only create questions about concepts that are EXPLICITLY explained in the video
+- Do NOT make assumptions about meanings of acronyms or terms unless clearly defined
+- Skip creating questions if the content is unclear or ambiguous
+- Focus on testing comprehension and application, not memorization of details
+
+Question Quality:
+- Questions should challenge learners to think critically and apply concepts
+- Target different cognitive levels (understanding, application, analysis)
+- Make questions specific to the video's core messages and key takeaways
+- Ensure questions are unambiguous and have a clear, definitive correct answer
+
+Answer Options:
+- All options must be plausible and related to the core concepts
+- Make distractors challenging but clearly incorrect when compared to the right answer
+- Avoid obvious wrong answers or joke options
+- Options should be similar in length and grammatical structure
+- Include common misconceptions as distractors when appropriate
+
+Difficulty Levels:
+- Easy: Tests understanding of main concepts and key messages
+- Medium: Requires connecting multiple core concepts or applying key insights
+- Hard: Involves analyzing relationships between major concepts or evaluating complex applications
+
+${existingQuestions.length > 0 ? '- Avoid creating questions similar to the existing ones listed above\n' : ''}
+
+Before creating each question, ask yourself:
+1. Does this question test understanding of a CORE concept or key insight?
+2. Will the answer help learners apply important knowledge?
+3. Is this focused on what matters most from the video?
+4. Am I avoiding trivial details and focusing on significant learning?
+
+IMPORTANT: Your response must be a valid JSON object with this EXACT structure:
 {
   "questions": [
     {
-      "question": "Question text here?",
-      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "question": "Clear, focused question about a core concept or key insight?",
+      "options": ["Plausible option A", "Plausible option B", "Plausible option C", "Plausible option D"],
       "correctAnswer": 0,
-      "explanation": "Detailed explanation of why this answer is correct and others are wrong",
+      "explanation": "Detailed explanation of why the correct answer represents the key learning and why other options are incorrect",
       "difficulty": "easy|medium|hard"
     }
   ]
 }
-`;
+
+If you cannot generate high-quality questions that focus on core concepts and key insights, return an empty questions array: {"questions": []}. Do not create questions about trivial details just to meet the count.`;
 
     try {
-      console.log(`Generating questions for video: ${title}`);
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 3000,
-        system: "You are an expert educational content creator specializing in creating effective learning assessments.",
         messages: [
+          {
+            role: "system",
+            content: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array."
+          },
           {
             role: "user",
             content: prompt
@@ -82,60 +113,52 @@ Respond with a JSON object containing an array called "questions" with this stru
         temperature: 0.7,
       });
 
-      if (!response.content || !response.content[0] || !response.content[0].text) {
-        console.error("Empty response from Anthropic API");
-        return [];
-      }
-
-      let result;
+      let jsonText = response.content[0].text.trim();
+      
+      // Try to clean up common JSON formatting issues
+      jsonText = jsonText.replace(/\n\s*/g, ' '); // Remove newlines and extra spaces
+      jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+      jsonText = jsonText.replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3'); // Add quotes to unquoted keys
+      
       try {
-        result = JSON.parse(response.content[0].text);
+        const result = JSON.parse(jsonText);
+        
+        if (!result.questions || !Array.isArray(result.questions)) {
+          console.error('Invalid response structure:', jsonText);
+          throw new Error("Invalid response format from Anthropic - missing questions array");
+        }
+
+        // Validate and clean up each question
+        return result.questions.map((q: any) => {
+          if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
+              typeof q.correctAnswer !== 'number' || !q.explanation || !q.difficulty) {
+            console.error('Invalid question structure:', q);
+            return null;
+          }
+
+          return {
+            question: q.question.trim(),
+            options: q.options.map((opt: string) => opt.trim()),
+            correctAnswer: Math.max(0, Math.min(3, parseInt(String(q.correctAnswer)) || 0)),
+            explanation: q.explanation.trim(),
+            difficulty: ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium",
+          };
+        }).filter((q: any) => q !== null); // Remove any invalid questions
+        
       } catch (parseError) {
-        console.error("Failed to parse Anthropic response as JSON:", response.content[0].text);
-        return [];
+        console.error('Failed to parse Anthropic response as JSON:', jsonText);
+        throw new Error("Failed to parse response as valid JSON");
       }
-      
-      if (!result.questions || !Array.isArray(result.questions)) {
-        console.error("Invalid response format from Anthropic:", result);
-        return [];
-      }
-
-      // Validate and clean up the questions
-      const validatedQuestions = result.questions.map((q: any) => ({
-        question: q.question || "",
-        options: Array.isArray(q.options) ? q.options.slice(0, 4) : [],
-        correctAnswer: Math.max(0, Math.min(3, parseInt(q.correctAnswer) || 0)),
-        explanation: q.explanation || "",
-        difficulty: ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium",
-      })).filter((q: any) => q.question && q.options.length === 4);
-
-      if (validatedQuestions.length === 0) {
-        console.error("No valid questions in Anthropic response:", result.questions);
-      } else {
-        console.log(`Successfully generated ${validatedQuestions.length} questions for video: ${title}`);
-      }
-      
-      return validatedQuestions;
       
     } catch (error) {
-      console.error("Error generating questions:", {
-        error: error instanceof Error ? error.message : error,
-        title,
-        category,
-        transcriptLength: transcript.length
-      });
-      return [];
+      console.error("Error generating questions:", error);
+      throw new Error("Failed to generate questions from content");
     }
   }
 
   async categorizeContent(title: string, description: string): Promise<string> {
-    if (!this.client) {
-      console.warn("Cannot categorize content: Anthropic client not initialized (missing API key)");
-      return "general";
-    }
-
     const prompt = `
-Categorize this YouTube video content into one of these categories:
+Analyze this YouTube video content and respond with ONLY ONE of these exact category names (no other text):
 - programming
 - science  
 - history
@@ -147,14 +170,22 @@ Categorize this YouTube video content into one of these categories:
 Title: ${title}
 Description: ${description.substring(0, 500)}
 
-Respond with just the category name.
-`;
+IMPORTANT: Only categorize if you are confident about the content's primary focus. Default to "general" if unclear.`;
 
     try {
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 50,
-        messages: [{ role: "user", content: prompt }],
+        messages: [
+          {
+            role: "system",
+            content: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain."
+          },
+          {
+            role: "user",
+            content: prompt
+          }
+        ],
         temperature: 0.3,
       });
 
@@ -163,10 +194,7 @@ Respond with just the category name.
       
       return validCategories.includes(category) ? category : "general";
     } catch (error) {
-      console.error("Error categorizing content:", {
-        error: error instanceof Error ? error.message : error,
-        title
-      });
+      console.error("Error categorizing content:", error);
       return "general";
     }
   }
