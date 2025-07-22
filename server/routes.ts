@@ -78,6 +78,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Clear user library
+  app.delete('/api/user/library', mockAuth, async (req: any, res) => {
+    try {
+      const userId = req.user.claims.sub;
+      await storage.clearUserLibrary(userId);
+      res.json({ message: "Library cleared successfully" });
+    } catch (error) {
+      console.error("Error clearing library:", error);
+      res.status(500).json({ message: "Failed to clear library" });
+    }
+  });
+
   // Video analysis
   app.post('/api/videos/analyze', mockAuth, async (req: any, res) => {
     try {

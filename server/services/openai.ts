@@ -1,15 +1,15 @@
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 export class OpenAIService {
-  private client: OpenAI;
+  private client: Anthropic;
 
   constructor() {
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      throw new Error("OpenAI API key not provided");
+      throw new Error("Anthropic API key not provided");
     }
     
-    this.client = new OpenAI({ apiKey });
+    this.client = new Anthropic({ apiKey });
   }
 
   async generateQuestions(
@@ -61,8 +61,9 @@ Respond with a JSON object containing an array called "questions" with this stru
 `;
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      const response = await this.client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 3000,
         messages: [
           {
             role: "system",
@@ -73,15 +74,13 @@ Respond with a JSON object containing an array called "questions" with this stru
             content: prompt
           }
         ],
-        response_format: { type: "json_object" },
         temperature: 0.7,
-        max_tokens: 3000,
       });
 
-      const result = JSON.parse(response.choices[0].message.content || "{}");
+      const result = JSON.parse(response.content[0].text || "{}");
       
       if (!result.questions || !Array.isArray(result.questions)) {
-        throw new Error("Invalid response format from OpenAI");
+        throw new Error("Invalid response format from Anthropic");
       }
 
       // Validate and clean up the questions
@@ -117,14 +116,14 @@ Respond with just the category name.
 `;
 
     try {
-      const response = await this.client.chat.completions.create({
-        model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      const response = await this.client.messages.create({
+        model: "claude-3-haiku-20240307",
+        max_tokens: 50,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.3,
-        max_tokens: 50,
       });
 
-      const category = response.choices[0].message.content?.trim().toLowerCase() || "general";
+      const category = response.content[0].text?.trim().toLowerCase() || "general";
       const validCategories = ["programming", "science", "history", "business", "mathematics", "languages", "general"];
       
       return validCategories.includes(category) ? category : "general";

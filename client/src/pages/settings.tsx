@@ -16,7 +16,18 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { isUnauthorizedError } from "@/lib/authUtils";
-import { Save, Settings as SettingsIcon } from "lucide-react";
+import { Save, Settings as SettingsIcon, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const preferencesSchema = z.object({
   learningGoals: z.string().optional(),
@@ -123,6 +134,38 @@ export default function Settings() {
       toast({
         title: "Error",
         description: "Failed to update preferences. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const clearLibraryMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("DELETE", "/api/user/library");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Library Cleared",
+        description: "Your learning library has been cleared successfully.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
+    },
+    onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Unauthorized",
+          description: "You are logged out. Logging in again...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 500);
+        return;
+      }
+      toast({
+        title: "Error",
+        description: "Failed to clear library. Please try again.",
         variant: "destructive",
       });
     },
@@ -341,6 +384,61 @@ export default function Settings() {
                 </div>
               </form>
             </Form>
+          </CardContent>
+        </Card>
+
+        {/* Danger Zone */}
+        <Card className="border-red-200 mt-8">
+          <CardHeader>
+            <CardTitle className="text-red-600">Danger Zone</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between py-4">
+              <div>
+                <h3 className="text-lg font-medium">Clear Learning Library</h3>
+                <p className="text-sm text-gray-500">
+                  Delete all your videos, quizzes, and learning progress. This action cannot be undone.
+                </p>
+              </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="bg-red-600 hover:bg-red-700">
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Clear Library
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete all your:
+                      <ul className="list-disc list-inside mt-2">
+                        <li>Educational videos</li>
+                        <li>Generated quizzes</li>
+                        <li>Quiz responses</li>
+                        <li>Learning progress</li>
+                      </ul>
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-red-600 hover:bg-red-700"
+                      onClick={() => clearLibraryMutation.mutate()}
+                    >
+                      {clearLibraryMutation.isPending ? (
+                        <div className="flex items-center space-x-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          <span>Clearing...</span>
+                        </div>
+                      ) : (
+                        "Yes, clear everything"
+                      )}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
           </CardContent>
         </Card>
       </div>

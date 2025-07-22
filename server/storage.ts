@@ -36,6 +36,7 @@ export interface IStorage {
   createVideo(video: InsertVideo): Promise<Video>;
   getUserVideos(userId: string): Promise<Video[]>;
   getVideo(id: string): Promise<Video | undefined>;
+  clearUserLibrary(userId: string): Promise<void>;
   
   // Question operations
   createQuestions(questions: InsertQuestion[]): Promise<Question[]>;
@@ -350,6 +351,27 @@ export class DatabaseStorage implements IStorage {
       .from(videos)
       .where(eq(videos.id, id));
     return video;
+  }
+
+  async clearUserLibrary(userId: string): Promise<void> {
+    // Delete all user's quiz sessions and related data first
+    const userSessions = await this.getUserQuizSessions(userId);
+    for (const session of userSessions) {
+      await db.delete(questionResponses).where(eq(questionResponses.sessionId, session.id));
+    }
+    await db.delete(quizSessions).where(eq(quizSessions.userId, userId));
+
+    // Delete all user's videos and related data
+    const userVideos = await this.getUserVideos(userId);
+    for (const video of userVideos) {
+      // Delete questions and review schedules for this video
+      const videoQuestions = await this.getVideoQuestions(video.id);
+      for (const question of videoQuestions) {
+        await db.delete(reviewSchedule).where(eq(reviewSchedule.questionId, question.id));
+      }
+      await db.delete(questions).where(eq(questions.videoId, video.id));
+    }
+    await db.delete(videos).where(eq(videos.userId, userId));
   }
 
   // Question operations

@@ -1,0 +1,127 @@
+Below is a **code-ready implementation brief** that translates the attached FSRS-6 guide directly into RQuiztube’s current React + Express + PostgreSQL stack.
+Everything is framed so a coding agent can create migrations, API routes, and UI hooks without further research.
+
+---
+
+## 1  Core Algorithm Specifications
+
+| Item                            | Spec                                                                                                                                                                                                                |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Algorithm**                   | FSRS-6 primary; SM-2 fallback until user `review_count ≥ 30`                                                                                                                                                        |
+| **Key formulas**                | 1. *Retrievability* `R = e^(-Δt / S)`  <br>2. *Stability update* `S' = S · (1 + w1·(1-R)·(E-0.6))`  <br>3. *Next interval* `I' = clamp(S' · ln(R_target) · w2, 1 day, 365 days)`  (use `R_target = 0.9` for “Good”) |
+| **Default parameters**          | `initial_difficulty = 1.3`  `w = [0.5701, …, 2.8237]` (17 values from paper)  `max_interval = 365 days`  `min_interval = 1 day`                                                                                     |
+| **Variables to store per card** | `difficulty`, `stability`, `retrievability`, `next_review`, `review_count`, `lapse_count`, `last_reviewed_at`                                                                                                       |
+| **DB schema changes**           | *cards* table (new) – see §5  <br>*concepts* table (links questions into coherent units)                                                                                                                            |
+| **Performance**                 | ≤ 24 B extra per card (≈ 480 GB for 10 M users × 1 k cards) Index `(user_id, next_review)` to support `SELECT … WHERE next_review ≤ NOW()`                                                                          |
+
+---
+
+## 2  Learning Unit Structure
+
+| Concept                  | Implementation detail                                                                                          |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Granularity**          | *Learning Unit* = single **concept** (≈ 1–3 min idea) <br>Each concept owns 3-8 questions.                     |
+| **Metadata per concept** | `concept_id`, `video_id`, `title`, `timestamp_start`, `timestamp_end`, `summary`, `difficulty_hint (0–1)`      |
+| **Relationships**        | `videos 1--* concepts 1--* questions` <br>`cards` reference `question_id` and implicitly inherit concept/video |
+| **Grouping rules**       | GPT-4 video parser tags sentences → cluster via semantic similarity > 0.8 or same slide heading → concept.     |
+| **Storage additions**    | join table `question_concept` (`question_id`, `concept_id`, `order_idx`) for flexible regrouping.              |
+
+---
+
+## 3  Review Session Design
+
+| Item                    | Spec                                                                                                                                                             |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Session length**      | default 5–7 due cards; extendable in multiples of 5.                                                                                                             |
+| **Sequencing**          | 1. Due cards sorted by `next_review ASC`  <br>2. Interleave *new* concepts after every 3 due reviews  <br>3. Avoid two questions from same concept back-to-back. |
+| **Adaptive difficulty** | FSRS manages interval; additionally raise concept-level `difficulty_hint` if two consecutive lapses.                                                             |
+| **Failure handling**    | “Again” → `stability = stability × 0.2` ; schedule in 10 min (“relearning”).                                                                                     |
+| **Progress metrics**    | store per session: `total_answered`, `correct`, `avg_confidence`, `avg_latency_ms`. Expose 30-day rolling `accuracy`, `retention`.                               |
+
+---
+
+## 4  User Experience Requirements
+
+| Trigger                 | UX behaviour                                                                                                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Entry points**        | • “Review Now” button shows count of due items (badge)  <br>• Push/email reminder at 07:00 local if `due_count ≥ daily_target`                                   |
+| **In-session feedback** | Immediate green/red, plus self-report confidence (1–5).                                                                                                          |
+| **Progress viz**        | • Streak bar (consecutive review days)  <br>• “Memory curve” chart per concept (predicted recall vs time)  <br>• Overall mastery meter (cards mastered / total). |
+| **Motivation**          | • Badge on 3-day streak, 7-day, 30-day.  <br>• “Welcome-back” gentle session (< 3 old + 2 easy new) after ≥ 14 days inactivity.                                  |
+
+---
+
+## 5  Technical Implementation Considerations
+
+### 5.1 Database (Drizzle migration snippets)
+
+```ts
+// cards
+pgTable('cards', {
+  cardId: bigserial('card_id').primaryKey(),
+  questionId: bigint('question_id').notNull(),
+  userId: bigint('user_id').notNull(),
+  difficulty: numeric('difficulty', { precision:5, scale:3 }).default('1.3'),
+  stability: numeric('stability', { precision:8, scale:3 }).default('1.0'),
+  nextReview: timestamp('next_review').index(),
+  reviewCount: integer('review_count').default(0),
+  lapseCount: integer('lapse_count').default(0),
+  lastReviewed: timestamp('last_reviewed_at')
+});
+
+// concepts
+pgTable('concepts', {
+  conceptId: bigserial('concept_id').primaryKey(),
+  videoId: varchar('video_id', { length:100 }),
+  title: text('title'),
+  tStart: integer('timestamp_start'),
+  tEnd: integer('timestamp_end'),
+  summary: text('summary'),
+  difficultyHint: numeric('difficulty_hint', { precision:3, scale:2 }).default('0.5')
+});
+```
+
+### 5.2 API Endpoints (Express + tRPC style)
+
+| Method                             | Path                                                                            | Purpose |
+| ---------------------------------- | ------------------------------------------------------------------------------- | ------- |
+| `GET /api/reviews/due`             | Return next batch (5–7) of due card payloads                                    |         |
+| `POST /api/reviews/answer`         | Body: `{cardId, grade (0–3), confidence (1–5), latencyMs}` → updates scheduling |         |
+| `GET /api/progress`                | Aggregated stats for dashboards                                                 |         |
+| `PATCH /api/concepts/:id/priority` | User priority slider (0–2) adjusts difficulty\_hint                             |         |
+
+### 5.3 Performance
+
+* **Redis (hot cache)**: `due:<user_id>` list refreshed on answer insert. TTL 1 h.
+* **Warm cache (Node memory)**: FSRS global parameters.
+* **Cold storage**: Postgres partitioned by `user_id % 100`.
+* **Batch jobs**: nightly Cron to recompute streaks, send reminders, tune cohort parameters.
+
+### 5.4 Optimization
+
+* Prepared statements + connection pooling (pg-bouncer) for high-frequency `answer` writes.
+* Use `RETURNING` in `INSERT …` for atomic schedule update and updated card state response (< 100 ms target).
+* Debounce UI calls: send answers in chunks of 3 to reduce HTTP overhead on mobile.
+
+---
+
+## 6  Integration Points
+
+| Component                     | Integration step                                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Quiz generation**           | When GPT-4 creates questions, insert into `questions`, link to `concepts`, create `cards` with default FSRS vars. |
+| **Video processing pipeline** | Adds records in `concepts` table during transcript-to-concept clustering; triggers quiz generation worker.        |
+| **User progress**             | Dashboard queries `cards` + `review_sessions` (aggregated by nightly batch).                                      |
+| **Analytics**                 | Stream review events to Kafka → ClickHouse for A/B tests (FSRS vs SM-2) and engagement funnels.                   |
+
+---
+
+### Ready-To-Code Summary
+
+1. **Run migrations** adding `concepts`, `cards`, and indexes.
+2. **Implement FSRS-6 scheduler** (pure TypeScript util) wired into `POST /reviews/answer`.
+3. **Cache strategy**: push card IDs into Redis on creation/update; pop next 5-7 on `/due`.
+4. **Update React UI** with streak badge, session progress bar, and memory-curve mini-chart.
+5. **Enable daily reminder cron** once mail/push service credentials are available.
+
+When these steps are complete the platform will deliver **20-30 % fewer reviews for equal retention**, handle irregular study habits gracefully, and expose clear UI signals that drive long-term engagement.
