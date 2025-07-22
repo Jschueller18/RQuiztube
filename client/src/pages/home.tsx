@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayCircle, Clock, User, Search, Filter, ChevronLeft, ChevronRight, Book, Upload, CheckCircle, Trophy, Plus } from "lucide-react";
-import { Video } from "@shared/schema";
+import type { Video } from "../../../shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Navigation from "@/components/navigation";

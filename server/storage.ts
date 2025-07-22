@@ -17,7 +17,7 @@ import {
   type InsertQuestionResponse,
   type ReviewSchedule,
   type InsertReviewSchedule,
-} from "@shared/schema";
+} from "../shared/schema";
 import { db } from "./db";
 import { eq, and, lte, isNotNull, count } from "drizzle-orm";
 

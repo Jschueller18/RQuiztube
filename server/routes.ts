@@ -6,7 +6,7 @@ import { YouTubeService } from "./services/youtube";
 import { OpenAIService } from "./services/openai";
 import { SpacedRepetitionService } from "./services/spaced-repetition";
 import { GoogleDriveService } from "./services/google-drive";
-import { insertVideoSchema, insertQuizSessionSchema, insertQuestionResponseSchema } from "@shared/schema";
+import { insertVideoSchema, insertQuizSessionSchema, insertQuestionResponseSchema } from "../shared/schema";
 import { nanoid } from "nanoid";
 
 // Mock authentication middleware for Railway deployment
