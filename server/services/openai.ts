@@ -113,33 +113,51 @@ If you cannot generate high-quality questions that focus on core concepts and ke
       let jsonText = response.content[0].text.trim();
       
       // Enhanced JSON cleanup
-      jsonText = jsonText
-        .replace(/\n\s*/g, ' ') // Remove newlines and extra spaces
-        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
-        .replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3') // Add quotes to unquoted keys
-        .replace(/"\s*"\s*([^"]+)\s*"\s*"/g, '"$1"') // Fix double quoted strings
-        .replace(/"\s+"/g, '"') // Remove spaces between quotes
-        .replace(/"\s+/g, '"') // Remove spaces after quotes
-        .replace(/\s+"/g, '"') // Remove spaces before quotes
-        .replace(/,\s+}/g, '}') // Remove spaces before closing braces
-        .replace(/,\s+]/g, ']') // Remove spaces before closing brackets
-        .replace(/{\s+/g, '{') // Remove spaces after opening braces
-        .replace(/\[\s+/g, '[') // Remove spaces after opening brackets
-        .replace(/\s+}/g, '}') // Remove spaces before closing braces
-        .replace(/\s+]/g, ']'); // Remove spaces before closing brackets
-      
+      const cleanJson = (text: string) => {
+        // First, temporarily replace commas inside quotes to prevent interference
+        let cleaned = text.replace(/"[^"]*"/g, (match) => {
+          return match.replace(/,/g, '###COMMA###');
+        });
+
+        // Clean up the JSON structure
+        cleaned = cleaned
+          .replace(/\n\s*/g, ' ') // Remove newlines and extra spaces
+          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+          .replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3') // Add quotes to unquoted keys
+          .replace(/"\s*"\s*([^"]+)\s*"\s*"/g, '"$1"') // Fix double quoted strings
+          .replace(/"\s+"/g, '"') // Remove spaces between quotes
+          .replace(/"\s+/g, '"') // Remove spaces after quotes
+          .replace(/\s+"/g, '"') // Remove spaces before quotes
+          .replace(/,\s+}/g, '}') // Remove spaces before closing braces
+          .replace(/,\s+]/g, ']') // Remove spaces before closing brackets
+          .replace(/{\s+/g, '{') // Remove spaces after opening braces
+          .replace(/\[\s+/g, '[') // Remove spaces after opening brackets
+          .replace(/\s+}/g, '}') // Remove spaces before closing braces
+          .replace(/\s+]/g, ']') // Remove spaces before closing brackets
+          .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"') // Fix spacing around colons
+          .replace(/([{\[,]\s*)"([^"]+)":\s*(\d+)/g, '$1"$2":$3') // Fix spacing around numbers
+          .replace(/([{\[,]\s*)"([^"]+)":\s*\[/g, '$1"$2":[') // Fix spacing around arrays
+          .replace(/([{\[,]\s*)"([^"]+)":\s*{/g, '$1"$2":{'); // Fix spacing around objects
+
+        // Restore commas inside quotes
+        cleaned = cleaned.replace(/###COMMA###/g, ',');
+        
+        return cleaned;
+      };
+
       try {
-        // Try parsing the cleaned JSON
+        // Try parsing with enhanced cleanup
         let result;
         try {
+          jsonText = cleanJson(jsonText);
           result = JSON.parse(jsonText);
         } catch (initialParseError) {
-          // If initial parse fails, try one more cleanup
+          // If initial parse fails, try additional cleanup
           jsonText = jsonText
-            .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"') // Fix spacing around colons
-            .replace(/([{\[,]\s*)"([^"]+)":\s*(\d+)/g, '$1"$2":$3') // Fix spacing around numbers
-            .replace(/([{\[,]\s*)"([^"]+)":\s*\[/g, '$1"$2":[') // Fix spacing around arrays
-            .replace(/([{\[,]\s*)"([^"]+)":\s*{/g, '$1"$2":{'); // Fix spacing around objects
+            .replace(/\[\s*"{\s*"/g, '[{') // Fix array start
+            .replace(/"\s*}"\s*\]/g, '}]') // Fix array end
+            .replace(/"\s*,\s*"/g, ',') // Fix item separators
+            .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"'); // One more pass at fixing key-value pairs
           
           result = JSON.parse(jsonText);
         }
