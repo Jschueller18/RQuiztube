@@ -112,13 +112,37 @@ If you cannot generate high-quality questions that focus on core concepts and ke
 
       let jsonText = response.content[0].text.trim();
       
-      // Try to clean up common JSON formatting issues
-      jsonText = jsonText.replace(/\n\s*/g, ' '); // Remove newlines and extra spaces
-      jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
-      jsonText = jsonText.replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3'); // Add quotes to unquoted keys
+      // Enhanced JSON cleanup
+      jsonText = jsonText
+        .replace(/\n\s*/g, ' ') // Remove newlines and extra spaces
+        .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
+        .replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3') // Add quotes to unquoted keys
+        .replace(/"\s*"\s*([^"]+)\s*"\s*"/g, '"$1"') // Fix double quoted strings
+        .replace(/"\s+"/g, '"') // Remove spaces between quotes
+        .replace(/"\s+/g, '"') // Remove spaces after quotes
+        .replace(/\s+"/g, '"') // Remove spaces before quotes
+        .replace(/,\s+}/g, '}') // Remove spaces before closing braces
+        .replace(/,\s+]/g, ']') // Remove spaces before closing brackets
+        .replace(/{\s+/g, '{') // Remove spaces after opening braces
+        .replace(/\[\s+/g, '[') // Remove spaces after opening brackets
+        .replace(/\s+}/g, '}') // Remove spaces before closing braces
+        .replace(/\s+]/g, ']'); // Remove spaces before closing brackets
       
       try {
-        const result = JSON.parse(jsonText);
+        // Try parsing the cleaned JSON
+        let result;
+        try {
+          result = JSON.parse(jsonText);
+        } catch (initialParseError) {
+          // If initial parse fails, try one more cleanup
+          jsonText = jsonText
+            .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"') // Fix spacing around colons
+            .replace(/([{\[,]\s*)"([^"]+)":\s*(\d+)/g, '$1"$2":$3') // Fix spacing around numbers
+            .replace(/([{\[,]\s*)"([^"]+)":\s*\[/g, '$1"$2":[') // Fix spacing around arrays
+            .replace(/([{\[,]\s*)"([^"]+)":\s*{/g, '$1"$2":{'); // Fix spacing around objects
+          
+          result = JSON.parse(jsonText);
+        }
         
         if (!result.questions || !Array.isArray(result.questions)) {
           console.error('Invalid response structure:', jsonText);
