@@ -14,7 +14,7 @@ export class AnthropicService {
 
   async generateQuestions(
     title: string,
-    transcript: string,
+    claudeOptimizedContent: string,
     category: string,
     count: number = 10,
     existingQuestions: string[] = []
@@ -34,7 +34,8 @@ You are an expert educational content creator specializing in creating effective
 
 Video Title: ${title}
 Category: ${category}
-Transcript/Content: ${transcript.substring(0, 4000)}${existingQuestionsText}
+
+${claudeOptimizedContent}${existingQuestionsText}
 
 IMPORTANT GUIDELINES:
 
@@ -105,6 +106,11 @@ Notes on JSON format:
 
 If you cannot generate high-quality questions that focus on core concepts and key insights, return exactly: {"questions": []}`;
 
+    // Log prompt size for debugging
+    const promptSize = prompt.length;
+    const estimatedTokens = Math.ceil(promptSize / 4); // Rough estimate: 4 chars per token
+    console.log(`Prompt size: ${promptSize} chars (~${estimatedTokens} tokens). Content: ${claudeOptimizedContent.length} chars`);
+
     try {
       console.log(`Attempting to generate questions for: ${title}`);
       
@@ -146,6 +152,10 @@ If you cannot generate high-quality questions that focus on core concepts and ke
           console.log(`API error (${apiError.status}): ${apiError.message}. Retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
+      }
+
+      if (!response) {
+        throw new Error("Failed to get response from Anthropic after retries");
       }
 
       console.log(`Got response from Anthropic for: ${title}`);
@@ -199,6 +209,8 @@ If you cannot generate high-quality questions that focus on core concepts and ke
       throw new Error("Failed to generate questions from content");
     }
   }
+
+  // Remove the old calculateOptimalTranscriptLength method since content preparation is now handled by YouTube service
 
   async categorizeContent(title: string, description: string): Promise<string> {
     const prompt = `
@@ -256,6 +268,11 @@ IMPORTANT: Only categorize if you are confident about the content's primary focu
           console.log(`Categorization API error (${apiError.status}): ${apiError.message}. Retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
+      }
+
+      if (!response) {
+        console.error("Failed to get response from Anthropic for categorization");
+        return "general";
       }
 
       const category = response.content[0].text?.trim().toLowerCase() || "general";

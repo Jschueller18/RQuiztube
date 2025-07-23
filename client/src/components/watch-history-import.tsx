@@ -39,12 +39,30 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
     },
     onSuccess: (data: any) => {
       const isEducationalData = data.metadata?.importedFrom === 'structured-educational-data';
+      const processedCount = data.processedCount || 0;
+      const skippedCount = data.skippedCount || 0;
+      const failedCount = data.failedCount || 0;
+      
+      let description = '';
+      if (isEducationalData) {
+        description = `Successfully imported ${processedCount} educational videos from ${data.totalAvailable} available`;
+      } else {
+        description = `Successfully imported ${processedCount} videos`;
+        if (skippedCount > 0 || failedCount > 0) {
+          description += ` (${skippedCount} skipped, ${failedCount} failed)`;
+        }
+        description += '!';
+      }
+
+      // Show additional details if there were issues
+      if (skippedCount > 0 && data.skipped) {
+        const reasons = data.skipped.map((s: any) => s.reason).slice(0, 3);
+        description += `\n\nMost common skip reasons: ${reasons.join(', ')}`;
+      }
       
       toast({
         title: "Import Complete",
-        description: isEducationalData 
-          ? `Successfully imported ${data.processedCount} educational videos from ${data.totalAvailable} available` 
-          : "Your YouTube watch history has been imported successfully!",
+        description,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/videos"] });
       setImportProgress(null);
@@ -229,7 +247,9 @@ export default function WatchHistoryImport({ onImportComplete }: WatchHistoryImp
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription className="text-sm">
-            We'll process up to 50 of your most recent videos to create personalized quizzes. 
+            We'll process up to 50 videos from your upload to create personalized quizzes. 
+            Only videos with transcripts, 3+ minutes duration, and educational content will be processed.
+            Videos without transcripts or that are too short will be automatically skipped.
             This process may take a few minutes as we analyze each video.
           </AlertDescription>
         </Alert>

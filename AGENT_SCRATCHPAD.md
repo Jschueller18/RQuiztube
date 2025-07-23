@@ -5,7 +5,7 @@
 **Technology Stack:**
 - Frontend: React 18 + TypeScript + Vite + TailwindCSS + Radix UI
 - Backend: Express.js + TypeScript + Drizzle ORM + PostgreSQL
-- AI Services: OpenAI GPT-4o for question generation
+- AI Services: Claude 3.5 Sonnet for question generation (switched from OpenAI)
 - Authentication: Currently disabled (mock auth for Railway deployment)
 - Storage: PostgreSQL with Drizzle ORM
 - Deployment: Railway platform
@@ -14,6 +14,8 @@
 - Single YouTube video analysis and quiz generation
 - Bulk import from Google Takeout watch history files
 - Structured educational video data import (JSON format)
+- **NEW: Comprehensive video validation system**
+- **NEW: Claude-optimized content preparation**
 - Basic spaced repetition algorithm implementation
 - Quiz session management with scoring
 - Video library management with search/filtering
@@ -21,227 +23,101 @@
 
 ---
 
-## Task Analysis & Requirements
+## COMPLETED: Enhanced Video Validation & Claude Optimization System
 
-### Task 1: Improve Question Quality & Focus on Important Learnings
+### What Was Implemented
 
-**Current State:**
-- OpenAI service uses GPT-4o to generate questions from video transcripts
-- Current prompt focuses on general comprehension but doesn't explicitly avoid trivial details
-- Questions may include minor details like guest names, book authors, specific dates
+**1. Comprehensive Video Validation (`YouTubeService.validateVideoForProcessing`)**
+- **Transcript Requirement**: Videos MUST have actual transcripts - no fallback to descriptions
+- **Duration Check**: Minimum 3 minutes required for educational content
+- **Educational Content Detection**: Keyword analysis to filter non-educational content
+- **Quality Validation**: Minimum 500 character transcript after cleaning
+- **Early Rejection**: Videos are rejected BEFORE being sent to Claude or added to library
 
-**What Needs to Change:**
-- Questions should target the most important/interesting learnings from videos
-- Avoid small details like who wrote a certain book or guest appearances
-- Focus on core concepts, actionable insights, and main learning objectives
-- Better content analysis to identify what matters most
+**2. Claude-Optimized Content Preparation**
+- **Intelligent Transcript Cleaning**: Removes noise like [Music], (inaudible), special characters
+- **Optimal Length Targeting**: 4000-6000 characters for best Claude performance
+- **Smart Truncation**: Breaks at sentence boundaries when truncating
+- **Structured Context**: Provides Claude with title, creator, duration, and clean transcript
+- **Enhanced Descriptions**: Removes promotional content, URLs, timestamps
 
-**Key Files Involved:**
-- `server/services/openai.ts` - Question generation logic
-- Need enhanced prompting strategy
-- Possibly new content analysis service
+**3. Updated Processing Flow**
+- **Validation First**: All videos go through validation before any processing
+- **Detailed Reporting**: Tracks processed, skipped, and failed videos with reasons
+- **Better Error Handling**: Specific rejection reasons for each validation failure
+- **Claude Receives Only Quality Content**: No more poor quality or irrelevant content
+
+**4. Enhanced User Feedback**
+- **Detailed Import Results**: Shows counts of processed, skipped, and failed videos
+- **Skip Reason Reporting**: Explains why videos were skipped
+- **Clear Expectations**: UI explains transcript and duration requirements
+
+### Key Files Modified
+- `server/services/youtube.ts` - Added comprehensive validation system
+- `server/services/anthropic.ts` - Updated to use Claude-optimized content
+- `server/routes.ts` - Updated all import endpoints to use validation
+- `client/src/components/watch-history-import.tsx` - Enhanced user feedback
+
+### Benefits Achieved
+1. **Higher Quality Questions**: Claude receives only well-prepared, educational content
+2. **No Wasted API Calls**: Videos without transcripts are rejected early
+3. **Better User Experience**: Clear feedback on why videos are skipped
+4. **Consistent Processing**: All video sources use the same validation pipeline
+5. **Educational Focus**: Non-educational content is automatically filtered out
 
 ---
+
+## Task Analysis & Requirements
+
+### ✅ Task 1: Improve Question Quality & Focus on Important Learnings - COMPLETED
+
+**What Was Done:**
+- Enhanced Claude prompting to focus on core concepts and actionable insights
+- Explicit instructions to avoid trivial details (guest names, dates, anecdotes)
+- Claude-optimized content preparation ensures clean, structured input
+- Validation ensures only educational content reaches Claude
 
 ### Task 2: Raw History File Upload & Parsing System
 
 **Current State:**
 - Basic watch history import exists for structured formats (JSON/HTML)
-- Limited to specific Google Takeout formats
-- No direct handling of raw/ZIP files
+- **NEW: Enhanced validation system filters out unsuitable content**
+- Support for various export formats
 
-**What Needs to Change:**
-- Users should be able to input their raw history files directly
-- System must parse files for educational content above 3 minutes in length
-- Process first 50 videos automatically as it does now
-- Support various export formats and raw ZIP files
-
-**Key Requirements:**
-- Multi-format file support (ZIP, JSON, HTML, etc.)
-- Duration filtering (3+ minutes for educational content)
-- Educational content detection and filtering
-- Robust parsing for different YouTube export formats
-
-**Key Files Involved:**
-- `client/src/components/watch-history-import.tsx` - UI enhancement needed
-- `server/routes.ts` - New file processing endpoints
-- New file parsing service needed
-
----
+**What Still Needs to Change:**
+- Support for ZIP file uploads and extraction
+- Better handling of different YouTube export formats
+- Direct drag-and-drop file interface
 
 ### Task 3: Next 50 Videos System & Persistent Storage
 
 **Current State:**
-- Only processes first 50 videos from uploaded files
-- Users must re-upload files to get more videos processed (does not work if the same 50 videos still come first)
-- Watch history data is not persistently stored
+- **IMPROVED: Now processes up to 50 videos with proper validation**
+- **NEW: Detailed reporting of skipped/failed videos**
+- Users still must re-upload files to get more videos processed
 
-**What Needs to Change:**
-- System should download/store user's complete watch history document
-- Allow users to request processing of next 50 videos without re-upload
-- Persistent storage of original watch history for future processing
-- Pagination system for large watch histories
-
-**Key Requirements:**
-- Database storage for complete watch history
-- Pagination/batch processing interface
-- Progress tracking for video processing
-- "Load next 50" functionality
-
-**Key Files Involved:**
-- `shared/schema.ts` - New database tables needed
-- `server/storage.ts` - Watch history storage methods
-- New watch history management components
-- Enhanced UI for batch processing
-
----
+**What Still Needs to Change:**
+- Persistent storage of complete watch history
+- "Load next 50" functionality without re-upload
+- Progress tracking for large watch histories
 
 ### Task 4: Enhanced Spaced Repetition System
 
 **Current State:**
 - Basic SM-2 algorithm implemented in `SpacedRepetitionService`
-- Questions scheduled for review but no dedicated study interface
-- Only brings back individual questions, not all questions for a video
-- Limited integration with main app flow
+- Questions scheduled for review but limited integration
+- **IMPROVED: Higher quality questions due to better validation**
 
-**What Needs to Change:**
-- When a video comes up for spaced repetition review, bring ALL questions generated for that video
-- Dedicated study section for reviewing due content
-- Better scheduling that considers video-level learning
-- Integration with main navigation and user flow
-
-**Key Requirements:**
-- Video-based review sessions (not just individual questions)
-- Dedicated study/review interface
-- Enhanced scheduling algorithm
-- Study progress tracking
-
-**Key Files Involved:**
-- `server/services/spaced-repetition.ts` - Enhanced algorithm
-- `client/src/pages/study.tsx` - New study page needed
-- `client/src/components/navigation.tsx` - Add study section
-- New review session components
+**What Still Needs to Change:**
+- Dedicated study interface for spaced repetition
+- Video-level review sessions
+- Better integration with main app flow
 
 ---
 
-### Task 5: Authentication System Restoration
+## Next Priority Tasks
 
-**Current State:**
-- Replit Auth system disabled for Railway deployment
-- Mock authentication with single test user (`railway-test-user`)
-- All users share the same data
-- No user registration or login flow
-
-**What Needs to Change:**
-- Restore proper user authentication system
-- User registration and login functionality
-- Proper user data isolation
-- Session management and security
-
-**Key Requirements:**
-- Choose authentication strategy (custom auth, OAuth, etc.)
-- User registration/login pages
-- Replace mock authentication throughout codebase
-- Secure user data separation
-
-**Key Files Involved:**
-- `server/routes.ts` - Remove mock auth, implement real auth
-- `client/src/hooks/useAuth.ts` - Real authentication logic
-- `client/src/App.tsx` - Protected routes
-- New authentication pages and components needed
-
----
-
-### Task 6: Paywall System & User Tiers
-
-**Current State:**
-- No user tiers or limits
-- All users have unlimited access to video processing
-- No payment or subscription system
-
-**What Needs to Change:**
-- Free users limited to most recent 20 videos only
-- Full/premium users have no limit
-- Payment system for upgrading to premium
-- Usage tracking and enforcement
-
-**Key Requirements:**
-- User subscription tiers (free vs premium)
-- Payment processing integration
-- Usage limits and tracking
-- Upgrade flow and billing management
-
-**Key Database Changes Needed:**
-- User subscription status and limits
-- Usage tracking per user
-- Payment/billing history
-
-**Key Files Involved:**
-- `shared/schema.ts` - User subscription fields
-- `server/routes.ts` - Usage limit checks
-- New subscription management pages
-- Payment integration service
-
----
-
-## Priority Assessment
-
-### High Priority (Core Functionality)
-1. **Task 1: Question Quality** - Directly impacts learning effectiveness
-2. **Task 5: Authentication** - Required for proper user separation
-3. **Task 6: Basic Paywall** - Business model and resource management
-
-### Medium Priority (User Experience)
-4. **Task 2: Raw File Processing** - Improves onboarding experience
-5. **Task 3: Next 50 Videos** - Completes the file processing workflow
-
-### Lower Priority (Advanced Features)
-6. **Task 4: Enhanced Spaced Repetition** - Learning optimization feature
-
----
-
-## Technical Challenges to Consider
-
-### File Processing
-- Large file handling and processing
-- Multiple format support
-- Error handling for corrupted or invalid files
-
-### Scalability
-- AI API rate limits and costs
-- Database performance with large datasets
-- File storage and management
-
-### User Experience
-- Progress indication for long-running processes
-- Graceful error handling and user feedback
-- Mobile responsiveness for all new features
-
-### Security
-- File upload security
-- User data privacy
-- Payment processing security
-
----
-
-## Current Architecture Assessment
-
-**Strengths:**
-- Well-structured React + TypeScript frontend
-- Clean separation of concerns with services
-- Good database schema foundation
-- Existing AI integration working well
-
-**Areas for Improvement:**
-- Authentication system needs complete overhaul
-- File processing capabilities are limited
-- Spaced repetition features underutilized
-- No user management or billing system
-
-**Key Dependencies Missing:**
-- Payment processing service (Stripe, etc.)
-- File processing libraries
-- Authentication libraries
-- Email services for user management
-
-This analysis provides the foundation for implementing each task while maintaining the current architecture and user experience standards. 
+1. **ZIP File Support**: Enable direct upload and parsing of Google Takeout ZIP files
+2. **Watch History Persistence**: Store complete watch history for batch processing
+3. **Spaced Repetition Interface**: Create dedicated study session UI
+4. **Advanced Analytics**: Track validation metrics and quality improvements 
