@@ -106,6 +106,7 @@ Notes on JSON format:
 If you cannot generate high-quality questions that focus on core concepts and key insights, return exactly: {"questions": []}`;
 
     try {
+      console.log(`Attempting to generate questions for: ${title}`);
       const response = await this.client.messages.create({
         model: "claude-3-haiku-20240307",
         max_tokens: 3000,
@@ -119,12 +120,15 @@ If you cannot generate high-quality questions that focus on core concepts and ke
         temperature: 0.7,
       });
 
+      console.log(`Got response from Anthropic for: ${title}`);
       let jsonText = response.content[0].text.trim();
       
       // Try to clean up common JSON formatting issues
+      console.log('Original response:', jsonText);
       jsonText = jsonText.replace(/\n\s*/g, ' '); // Remove newlines and extra spaces
       jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
       jsonText = jsonText.replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3'); // Add quotes to unquoted keys
+      console.log('Cleaned response:', jsonText);
       
       try {
         const result = JSON.parse(jsonText);
@@ -135,7 +139,7 @@ If you cannot generate high-quality questions that focus on core concepts and ke
         }
 
         // Validate and clean up each question
-        return result.questions.map((q: any) => {
+        const validatedQuestions = result.questions.map((q: any) => {
           if (!q.question || !Array.isArray(q.options) || q.options.length !== 4 || 
               typeof q.correctAnswer !== 'number' || !q.explanation || !q.difficulty) {
             console.error('Invalid question structure:', q);
@@ -150,14 +154,22 @@ If you cannot generate high-quality questions that focus on core concepts and ke
             difficulty: ["easy", "medium", "hard"].includes(q.difficulty) ? q.difficulty : "medium",
           };
         }).filter((q: any) => q !== null); // Remove any invalid questions
+
+        console.log(`Successfully generated ${validatedQuestions.length} valid questions for: ${title}`);
+        return validatedQuestions;
         
       } catch (parseError) {
         console.error('Failed to parse Anthropic response as JSON:', jsonText);
+        console.error('Parse error:', parseError);
         throw new Error("Failed to parse response as valid JSON");
       }
       
     } catch (error) {
       console.error("Error generating questions:", error);
+      if (error instanceof Error) {
+        console.error("Error details:", error.message);
+        console.error("Error stack:", error.stack);
+      }
       throw new Error("Failed to generate questions from content");
     }
   }

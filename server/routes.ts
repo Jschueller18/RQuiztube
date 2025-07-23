@@ -683,23 +683,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
 
           const video = await storage.createVideo(videoData);
+          console.log(`Created video record for: ${videoItem.title}`);
 
           // Try to get transcript for question generation
           let transcript = '';
           let generatedQuestions = [];
           
           try {
+            console.log(`Fetching transcript for: ${videoItem.title}`);
             transcript = await youtubeService.getVideoTranscript(videoId);
             
             if (transcript) {
+              console.log(`Got transcript for: ${videoItem.title}, length: ${transcript.length} chars`);
               // Generate questions using AI with the transcript
+              console.log(`Generating questions for: ${videoItem.title}`);
               generatedQuestions = await openaiService.generateQuestions(
                 videoItem.title,
                 transcript,
                 getCategoryName(videoItem.category_id),
                 5 // Generate 5 questions per video
               );
+              console.log(`Generated ${generatedQuestions.length} questions for: ${videoItem.title}`);
             } else {
+              console.log(`No transcript available for: ${videoItem.title}, using description`);
               // Generate questions using video metadata if no transcript
               generatedQuestions = await openaiService.generateQuestions(
                 videoItem.title,
@@ -707,6 +713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 getCategoryName(videoItem.category_id),
                 3 // Fewer questions without transcript
               );
+              console.log(`Generated ${generatedQuestions.length} questions from description for: ${videoItem.title}`);
             }
 
             // Save questions to storage
@@ -722,10 +729,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }));
 
               await storage.createQuestions(questionsData);
+              console.log(`Saved ${questionsData.length} questions for: ${videoItem.title}`);
+            } else {
+              console.log(`No questions were generated for: ${videoItem.title}`);
             }
 
           } catch (transcriptError) {
-            console.log(`No transcript available for ${videoItem.title}, skipping question generation`);
+            console.error(`Error during question generation for ${videoItem.title}:`, transcriptError);
           }
 
           processedVideos.push({
