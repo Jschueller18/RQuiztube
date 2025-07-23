@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 
-export class OpenAIService {
+export class AnthropicService {
   private client: Anthropic;
 
   constructor() {
@@ -108,7 +108,7 @@ If you cannot generate high-quality questions that focus on core concepts and ke
     try {
       console.log(`Attempting to generate questions for: ${title}`);
       const response = await this.client.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 3000,
         system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array.",
         messages: [
@@ -125,9 +125,7 @@ If you cannot generate high-quality questions that focus on core concepts and ke
       
       // Try to clean up common JSON formatting issues
       console.log('Original response:', jsonText);
-      jsonText = jsonText.replace(/\n\s*/g, ' '); // Remove newlines and extra spaces
       jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
-      jsonText = jsonText.replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3'); // Add quotes to unquoted keys
       console.log('Cleaned response:', jsonText);
       
       try {
@@ -192,7 +190,7 @@ IMPORTANT: Only categorize if you are confident about the content's primary focu
 
     try {
       const response = await this.client.messages.create({
-        model: "claude-3-haiku-20240307",
+        model: "claude-3-5-sonnet-20241022",
         max_tokens: 50,
         system: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain.",
         messages: [

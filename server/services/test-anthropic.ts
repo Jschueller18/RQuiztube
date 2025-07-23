@@ -1,8 +1,8 @@
-import { OpenAIService } from './openai';
+import { AnthropicService } from './anthropic';
 
 async function testAnthropicService() {
   try {
-    const service = new OpenAIService();
+    const service = new AnthropicService();
 
     // Test content categorization
     console.log('\nTesting content categorization...');

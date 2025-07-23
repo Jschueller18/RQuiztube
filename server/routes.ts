@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 // DISABLED FOR RAILWAY: import { setupAuth, isAuthenticated } from "./replitAuth";
 import { YouTubeService } from "./services/youtube";
-import { OpenAIService } from "./services/openai";
+import { AnthropicService } from "./services/anthropic";
 import { SpacedRepetitionService } from "./services/spaced-repetition";
 import { GoogleDriveService } from "./services/google-drive";
 import { insertVideoSchema, insertQuizSessionSchema, insertQuestionResponseSchema } from "../shared/schema";
@@ -42,7 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // await setupAuth(app);
 
   const youtubeService = new YouTubeService();
-  const openaiService = new OpenAIService();
+  const anthropicService = new AnthropicService();
   const spacedRepetitionService = new SpacedRepetitionService();
   const googleDriveService = new GoogleDriveService();
 
@@ -133,7 +133,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const video = await storage.createVideo(videoData);
 
       // Generate questions
-      const generatedQuestions = await openaiService.generateQuestions(
+      const generatedQuestions = await anthropicService.generateQuestions(
         videoInfo.title,
         transcript,
         category,
@@ -359,7 +359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingQuestionTexts = existingQuestions.map(q => q.question.toLowerCase());
 
       // Generate new questions
-      const generatedQuestions = await openaiService.generateQuestions(
+      const generatedQuestions = await anthropicService.generateQuestions(
         video.title,
         video.transcript || '',
         video.category || 'general',
@@ -476,7 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const video = await storage.createVideo(videoData);
 
           // Generate questions using AI
-          const generatedQuestions = await openaiService.generateQuestions(
+          const generatedQuestions = await anthropicService.generateQuestions(
             videoInfo.title,
             transcript,
             videoInfo.channelTitle,
@@ -566,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const video = await storage.createVideo(videoData);
 
           // Generate questions
-          const generatedQuestions = await openaiService.generateQuestions(
+          const generatedQuestions = await anthropicService.generateQuestions(
             videoInfo.title,
             transcript,
             category,
@@ -697,7 +697,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log(`Got transcript for: ${videoItem.title}, length: ${transcript.length} chars`);
               // Generate questions using AI with the transcript
               console.log(`Generating questions for: ${videoItem.title}`);
-              generatedQuestions = await openaiService.generateQuestions(
+              generatedQuestions = await anthropicService.generateQuestions(
                 videoItem.title,
                 transcript,
                 getCategoryName(videoItem.category_id),
@@ -707,7 +707,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             } else {
               console.log(`No transcript available for: ${videoItem.title}, using description`);
               // Generate questions using video metadata if no transcript
-              generatedQuestions = await openaiService.generateQuestions(
+              generatedQuestions = await anthropicService.generateQuestions(
                 videoItem.title,
                 videoItem.description || '',
                 getCategoryName(videoItem.category_id),
@@ -851,7 +851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           const video = await storage.createVideo(videoData);
 
-          const generatedQuestions = await openaiService.generateQuestions(
+          const generatedQuestions = await anthropicService.generateQuestions(
             videoInfo.title,
             transcript,
             videoInfo.channelTitle,
