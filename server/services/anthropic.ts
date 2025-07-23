@@ -107,18 +107,46 @@ If you cannot generate high-quality questions that focus on core concepts and ke
 
     try {
       console.log(`Attempting to generate questions for: ${title}`);
-      const response = await this.client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 3000,
-        system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array.",
-        messages: [
-          {
-            role: "user",
-            content: prompt
+      
+      // Retry logic with exponential backoff for API overload errors
+      let retries = 0;
+      const maxRetries = 3;
+      let response;
+      
+      while (retries <= maxRetries) {
+        try {
+          response = await this.client.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 3000,
+            system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array.",
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            temperature: 0.7,
+          });
+          break; // Success, exit retry loop
+        } catch (apiError: any) {
+          retries++;
+          
+          // Check if it's a retryable error (overloaded, rate limit, etc.)
+          const isRetryable = apiError.status === 529 || // Overloaded
+                             apiError.status === 503 || // Service unavailable
+                             apiError.status === 500 || // Internal server error
+                             apiError.status === 429;   // Rate limited
+          
+          if (!isRetryable || retries > maxRetries) {
+            throw apiError; // Non-retryable error or max retries exceeded
           }
-        ],
-        temperature: 0.7,
-      });
+          
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, retries - 1) * 1000;
+          console.log(`API error (${apiError.status}): ${apiError.message}. Retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
 
       console.log(`Got response from Anthropic for: ${title}`);
       let jsonText = response.content[0].text.trim();
@@ -189,18 +217,46 @@ Description: ${description.substring(0, 500)}
 IMPORTANT: Only categorize if you are confident about the content's primary focus. Default to "general" if unclear.`;
 
     try {
-      const response = await this.client.messages.create({
-        model: "claude-3-5-sonnet-20241022",
-        max_tokens: 50,
-        system: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain.",
-        messages: [
-          {
-            role: "user",
-            content: prompt
+      // Retry logic with exponential backoff for API overload errors
+      let retries = 0;
+      const maxRetries = 3;
+      let response;
+      
+      while (retries <= maxRetries) {
+        try {
+          response = await this.client.messages.create({
+            model: "claude-3-5-sonnet-20241022",
+            max_tokens: 50,
+            system: "You are a content categorization expert. Respond with ONLY the single most appropriate category name from the provided list. Use 'general' if uncertain.",
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
+            temperature: 0.3,
+          });
+          break; // Success, exit retry loop
+        } catch (apiError: any) {
+          retries++;
+          
+          // Check if it's a retryable error (overloaded, rate limit, etc.)
+          const isRetryable = apiError.status === 529 || // Overloaded
+                             apiError.status === 503 || // Service unavailable
+                             apiError.status === 500 || // Internal server error
+                             apiError.status === 429;   // Rate limited
+          
+          if (!isRetryable || retries > maxRetries) {
+            console.error("Non-retryable error in categorizeContent:", apiError);
+            return "general"; // Fallback to general category on error
           }
-        ],
-        temperature: 0.3,
-      });
+          
+          // Exponential backoff: 1s, 2s, 4s
+          const delay = Math.pow(2, retries - 1) * 1000;
+          console.log(`Categorization API error (${apiError.status}): ${apiError.message}. Retrying in ${delay}ms... (attempt ${retries}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
 
       const category = response.content[0].text?.trim().toLowerCase() || "general";
       const validCategories = ["programming", "science", "history", "business", "mathematics", "languages", "general"];
