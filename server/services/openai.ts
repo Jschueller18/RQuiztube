@@ -81,20 +81,29 @@ Before creating each question, ask yourself:
 3. Is this focused on what matters most from the video?
 4. Am I avoiding trivial details and focusing on significant learning?
 
-IMPORTANT: Your response must be a valid JSON object with this EXACT structure:
+CRITICAL: You must respond with EXACTLY formatted JSON. Do not add extra spaces, quotes, or characters. Here is the exact format required:
+
 {
   "questions": [
     {
-      "question": "Clear, focused question about a core concept or key insight?",
-      "options": ["Plausible option A", "Plausible option B", "Plausible option C", "Plausible option D"],
+      "question": "Question text here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
       "correctAnswer": 0,
-      "explanation": "Detailed explanation of why the correct answer represents the key learning and why other options are incorrect",
-      "difficulty": "easy|medium|hard"
+      "explanation": "Explanation text here",
+      "difficulty": "easy"
     }
   ]
 }
 
-If you cannot generate high-quality questions that focus on core concepts and key insights, return an empty questions array: {"questions": []}. Do not create questions about trivial details just to meet the count.`;
+Notes on JSON format:
+- No extra spaces before or after quotes
+- No extra quotes around property names or values
+- No trailing commas
+- Array elements separated by exactly one comma
+- Use straight quotes (") not curly quotes
+- Difficulty must be exactly "easy", "medium", or "hard"
+
+If you cannot generate high-quality questions that focus on core concepts and key insights, return exactly: {"questions": []}`;
 
     try {
       const response = await this.client.messages.create({
@@ -112,55 +121,13 @@ If you cannot generate high-quality questions that focus on core concepts and ke
 
       let jsonText = response.content[0].text.trim();
       
-      // Enhanced JSON cleanup
-      const cleanJson = (text: string) => {
-        // First, temporarily replace commas inside quotes to prevent interference
-        let cleaned = text.replace(/"[^"]*"/g, (match) => {
-          return match.replace(/,/g, '###COMMA###');
-        });
-
-        // Clean up the JSON structure
-        cleaned = cleaned
-          .replace(/\n\s*/g, ' ') // Remove newlines and extra spaces
-          .replace(/,(\s*[}\]])/g, '$1') // Remove trailing commas
-          .replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3') // Add quotes to unquoted keys
-          .replace(/"\s*"\s*([^"]+)\s*"\s*"/g, '"$1"') // Fix double quoted strings
-          .replace(/"\s+"/g, '"') // Remove spaces between quotes
-          .replace(/"\s+/g, '"') // Remove spaces after quotes
-          .replace(/\s+"/g, '"') // Remove spaces before quotes
-          .replace(/,\s+}/g, '}') // Remove spaces before closing braces
-          .replace(/,\s+]/g, ']') // Remove spaces before closing brackets
-          .replace(/{\s+/g, '{') // Remove spaces after opening braces
-          .replace(/\[\s+/g, '[') // Remove spaces after opening brackets
-          .replace(/\s+}/g, '}') // Remove spaces before closing braces
-          .replace(/\s+]/g, ']') // Remove spaces before closing brackets
-          .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"') // Fix spacing around colons
-          .replace(/([{\[,]\s*)"([^"]+)":\s*(\d+)/g, '$1"$2":$3') // Fix spacing around numbers
-          .replace(/([{\[,]\s*)"([^"]+)":\s*\[/g, '$1"$2":[') // Fix spacing around arrays
-          .replace(/([{\[,]\s*)"([^"]+)":\s*{/g, '$1"$2":{'); // Fix spacing around objects
-
-        // Restore commas inside quotes
-        cleaned = cleaned.replace(/###COMMA###/g, ',');
-        
-        return cleaned;
-      };
-
+      // Try to clean up common JSON formatting issues
+      jsonText = jsonText.replace(/\n\s*/g, ' '); // Remove newlines and extra spaces
+      jsonText = jsonText.replace(/,(\s*[}\]])/g, '$1'); // Remove trailing commas
+      jsonText = jsonText.replace(/([{\[,]\s*)([^"{\[].+?)(:)/g, '$1"$2"$3'); // Add quotes to unquoted keys
+      
       try {
-        // Try parsing with enhanced cleanup
-        let result;
-        try {
-          jsonText = cleanJson(jsonText);
-          result = JSON.parse(jsonText);
-        } catch (initialParseError) {
-          // If initial parse fails, try additional cleanup
-          jsonText = jsonText
-            .replace(/\[\s*"{\s*"/g, '[{') // Fix array start
-            .replace(/"\s*}"\s*\]/g, '}]') // Fix array end
-            .replace(/"\s*,\s*"/g, ',') // Fix item separators
-            .replace(/([{\[,]\s*)"([^"]+)":\s*"([^"]+)"/g, '$1"$2":"$3"'); // One more pass at fixing key-value pairs
-          
-          result = JSON.parse(jsonText);
-        }
+        const result = JSON.parse(jsonText);
         
         if (!result.questions || !Array.isArray(result.questions)) {
           console.error('Invalid response structure:', jsonText);
