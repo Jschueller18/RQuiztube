@@ -116,38 +116,199 @@ export class YouTubeService {
    * Returns null if transcript is not available - no fallback to description
    */
   private async getRawTranscript(videoId: string): Promise<string | null> {
-    try {
-      console.log(`Fetching raw transcript for video: ${videoId}`);
-      
-      // Try to import youtube-transcript dynamically
-      let YoutubeTranscript;
+    console.log(`Fetching raw transcript for video: ${videoId}`);
+    
+    // Try multiple transcript sources in order of preference
+    const methods = [
+      () => this.getTranscriptFromYoutubeTranscript(videoId),
+      () => this.getTranscriptFromYtdlCore(videoId),
+      () => this.getTranscriptFromDistube(videoId)
+    ];
+    
+    for (let i = 0; i < methods.length; i++) {
       try {
-        const module = await import('youtube-transcript');
-        YoutubeTranscript = module.YoutubeTranscript;
-      } catch (importError) {
-        console.error("Failed to import youtube-transcript:", importError);
-        return null;
+        console.log(`Trying transcript method ${i + 1}/${methods.length}`);
+        const result = await methods[i]();
+        if (result && result.length > 100) { // Require minimum content length
+          console.log(`✅ Successfully fetched transcript using method ${i + 1}: ${result.length} characters`);
+          return result;
+        } else if (result) {
+          console.log(`⚠️  Method ${i + 1} returned content but too short: ${result.length} characters`);
+        }
+      } catch (error) {
+        console.log(`❌ Method ${i + 1} failed:`, error instanceof Error ? error.message : 'Unknown error');
       }
+    }
+    
+    console.log(`❌ All transcript methods failed for video ${videoId}`);
+    return null;
+  }
 
-      // Fetch actual transcript from YouTube
-      const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
+  private async getTranscriptFromYoutubeTranscript(videoId: string): Promise<string | null> {
+    try {
+      const module = await import('youtube-transcript');
+      const YoutubeTranscript = module.YoutubeTranscript;
+
+      // Try multiple language options
+      const languageOptions = [
+        { lang: 'en' },
+        {}, // Default - auto-detect
+        { lang: 'en-US' },
+        { lang: 'en-GB' }
+      ];
+
+      for (const options of languageOptions) {
+        try {
+          const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId, options);
+          
+          if (transcriptArray && transcriptArray.length > 0) {
+            const rawTranscript = transcriptArray
+              .map((item: any) => item.text)
+              .filter((text: string) => text && text.trim().length > 0)
+              .join(' ');
+            
+            if (rawTranscript.length > 50) {
+              console.log(`youtube-transcript success with options ${JSON.stringify(options)}`);
+              return rawTranscript;
+            }
+          }
+        } catch (langError) {
+          // Continue to next language option
+          continue;
+        }
+      }
       
-      if (!transcriptArray || transcriptArray.length === 0) {
-        console.log(`No transcript available for video ${videoId}`);
-        return null;
+      throw new Error('No valid transcript found with any language option');
+    } catch (error) {
+      throw new Error(`youtube-transcript failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getTranscriptFromYtdlCore(videoId: string): Promise<string | null> {
+    try {
+      const ytdl = await import('ytdl-core');
+      const info = await ytdl.default.getInfo(videoId);
+      
+      const captions = info.player_response?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      
+      if (!captions || captions.length === 0) {
+        throw new Error('No caption tracks found');
       }
 
-      // Convert transcript array to raw text
-      const rawTranscript = transcriptArray
-        .map((item: any) => item.text)
-        .join(' ');
+      // Find the best English caption track
+      let bestCaption = captions.find((cap: any) => 
+        cap.languageCode === 'en' && cap.kind !== 'asr'
+      ) || captions.find((cap: any) => 
+        cap.languageCode === 'en'
+      ) || captions.find((cap: any) => 
+        cap.languageCode.startsWith('en')
+      ) || captions[0];
 
-      console.log(`Successfully fetched raw transcript for ${videoId}: ${rawTranscript.length} characters`);
-      return rawTranscript;
+      console.log(`Using caption track: ${bestCaption.languageCode} - ${bestCaption.name?.simpleText || 'Auto-generated'}`);
 
+      // Fetch the caption content
+      const response = await fetch(bestCaption.baseUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch caption XML: ${response.statusText}`);
+      }
+      
+      const xmlText = await response.text();
+      
+      // Parse XML to extract text using more robust regex
+      const textMatches = xmlText.match(/<text[^>]*>([^<]*(?:<[^\/][^<]*>[^<]*<\/[^>]*>[^<]*)*)<\/text>/g);
+      
+      if (!textMatches || textMatches.length === 0) {
+        throw new Error('No text content found in caption XML');
+      }
+
+      const text = textMatches.map(match => {
+        // Extract content between text tags
+        const content = match.replace(/<text[^>]*>/, '').replace(/<\/text>/, '');
+        
+        // Decode HTML entities and clean up
+        return content
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&#(\d+);/g, (match, num) => String.fromCharCode(parseInt(num)))
+          .replace(/<[^>]*>/g, '') // Remove any remaining tags
+          .trim();
+      }).filter(t => t.length > 0).join(' ');
+
+      if (text.length < 50) {
+        throw new Error(`Extracted text too short: ${text.length} characters`);
+      }
+
+      console.log(`ytdl-core success: extracted ${text.length} characters`);
+      return text;
+      
     } catch (error) {
-      console.log(`Failed to fetch transcript for ${videoId}:`, error instanceof Error ? error.message : 'Unknown error');
-      return null;
+      throw new Error(`ytdl-core failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getTranscriptFromDistube(videoId: string): Promise<string | null> {
+    try {
+      const ytdlDistube = await import('@distube/ytdl-core');
+      const info = await ytdlDistube.default.getInfo(videoId);
+      
+      const captions = info.player_response?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+      
+      if (!captions || captions.length === 0) {
+        throw new Error('No caption tracks found');
+      }
+
+      // Find the best English caption track
+      let bestCaption = captions.find((cap: any) => 
+        cap.languageCode === 'en' && cap.kind !== 'asr'
+      ) || captions.find((cap: any) => 
+        cap.languageCode === 'en'
+      ) || captions.find((cap: any) => 
+        cap.languageCode.startsWith('en')
+      ) || captions[0];
+
+      console.log(`Using @distube caption track: ${bestCaption.languageCode} - ${bestCaption.name?.simpleText || 'Auto-generated'}`);
+
+      // Fetch the caption content
+      const response = await fetch(bestCaption.baseUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch caption XML: ${response.statusText}`);
+      }
+      
+      const xmlText = await response.text();
+      
+      // Parse XML to extract text
+      const textMatches = xmlText.match(/<text[^>]*>([^<]*(?:<[^\/][^<]*>[^<]*<\/[^>]*>[^<]*)*)<\/text>/g);
+      
+      if (!textMatches || textMatches.length === 0) {
+        throw new Error('No text content found in caption XML');
+      }
+
+      const text = textMatches.map(match => {
+        const content = match.replace(/<text[^>]*>/, '').replace(/<\/text>/, '');
+        
+        return content
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&#(\d+);/g, (match, num) => String.fromCharCode(parseInt(num)))
+          .replace(/<[^>]*>/g, '')
+          .trim();
+      }).filter(t => t.length > 0).join(' ');
+
+      if (text.length < 50) {
+        throw new Error(`Extracted text too short: ${text.length} characters`);
+      }
+
+      console.log(`@distube/ytdl-core success: extracted ${text.length} characters`);
+      return text;
+      
+    } catch (error) {
+      throw new Error(`@distube/ytdl-core failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -284,7 +445,7 @@ This video provides educational content that should be analyzed for key concepts
       throw new Error(`YouTube API error: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
     if (!data.items || data.items.length === 0) {
       throw new Error("Video not found");
     }
