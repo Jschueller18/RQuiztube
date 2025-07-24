@@ -65,10 +65,10 @@ export class YouTubeService {
 
       // Step 4: Clean and validate transcript quality
       const cleanTranscript = this.cleanTranscript(rawTranscript);
-      if (cleanTranscript.length < 500) {
+      if (cleanTranscript.length < 1000) {
         return {
           isValid: false,
-          rejectionReason: `Transcript too short: ${cleanTranscript.length} characters (minimum 500 characters required)`
+          rejectionReason: `Transcript too short: ${cleanTranscript.length} characters (minimum 1000 characters required)`
         };
       }
 
@@ -118,7 +118,7 @@ export class YouTubeService {
   private async getRawTranscript(videoId: string): Promise<string | null> {
     console.log(`Fetching raw transcript for video: ${videoId}`);
     
-    const MIN_TRANSCRIPT_THRESHOLD = 500; // Minimum viable transcript length for quality quiz generation
+    const MIN_TRANSCRIPT_THRESHOLD = 1000; // Minimum viable transcript length for quality quiz generation
     
     // Try multiple transcript sources in order of preference
     // NOTE: Removed getTranscriptFromVideoDescription to prevent fallback to low-quality content
@@ -217,7 +217,7 @@ export class YouTubeService {
         throw new Error(`Python extraction failed: ${result.error || 'Unknown error'}`);
       }
       
-      const MIN_TRANSCRIPT_THRESHOLD = 500; // Minimum viable transcript length
+      const MIN_TRANSCRIPT_THRESHOLD = 1000; // Minimum viable transcript length
       if (!result.transcript || result.transcript.length < MIN_TRANSCRIPT_THRESHOLD) {
         throw new Error(`Python transcript too short: ${result.transcript?.length || 0} characters (minimum ${MIN_TRANSCRIPT_THRESHOLD} required)`);
       }
