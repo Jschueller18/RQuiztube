@@ -135,15 +135,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         category: validationResult.category,
       });
 
-      const video = await storage.createVideo(videoData);
-
-      // Generate questions using Claude-optimized content
+      // Generate questions using Claude-optimized content BEFORE saving video
       const generatedQuestions = await anthropicService.generateQuestions(
         validationResult.videoInfo!.title,
         validationResult.claudeOptimizedContent!,
         validationResult.category!,
         5
       );
+
+
+      // Only create video if questions were successfully generated
+      const video = await storage.createVideo(videoData);
 
       // Save questions
       const questionsData = generatedQuestions.map(q => ({
@@ -506,15 +508,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             category: validationResult.category,
           });
 
-          const video = await storage.createVideo(videoData);
-
-          // Generate questions using Claude-optimized content
+          // Generate questions using Claude-optimized content BEFORE saving video
           const generatedQuestions = await anthropicService.generateQuestions(
             validationResult.videoInfo!.title,
             validationResult.claudeOptimizedContent!,
             validationResult.category!,
             5 // Generate 5 questions per video for bulk import
           );
+
+
+          // Only create video if questions were successfully generated
+          const video = await storage.createVideo(videoData);
 
           // Save questions to storage
           const questionsData = generatedQuestions.map(q => ({
@@ -620,15 +624,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             category: validationResult.category,
           });
 
-          const video = await storage.createVideo(videoData);
-
-          // Generate questions using Claude-optimized content
+          // Generate questions using Claude-optimized content BEFORE saving video
           const generatedQuestions = await anthropicService.generateQuestions(
             validationResult.videoInfo!.title,
             validationResult.claudeOptimizedContent!,
             validationResult.category!,
             5 // Generate 5 questions per video for bulk import
           );
+
+
+          // Only create video if questions were successfully generated
+          const video = await storage.createVideo(videoData);
 
           // Save questions to storage
           const questionsData = generatedQuestions.map(q => ({
@@ -740,71 +746,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
             return categories[categoryId] || 'Education';
           };
 
-          // Create video record using the structured data
-          const videoData = insertVideoSchema.parse({
-            userId,
-            youtubeId: videoId,
-            title: videoItem.title || 'Educational Video',
-            channelName: videoItem.channel_name || 'Unknown Channel',
-            duration: videoItem.duration_seconds || 0,
-            thumbnail: videoItem.thumbnail_url || '',
-            transcript: '', // Will be fetched later if needed for questions
-            category: getCategoryName(videoItem.category_id),
-          });
-
-          const video = await storage.createVideo(videoData);
-          console.log(`Created video record for: ${videoItem.title}`);
-
-          // Try to get enhanced content for question generation
+          // Try to get enhanced content for question generation BEFORE creating video
           let generatedQuestions = [];
           
           try {
             console.log(`Fetching enhanced content for: ${videoItem.title}`);
-            const transcript = await youtubeService.getVideoTranscript(videoId);
+            const validationResult = await youtubeService.validateVideoForProcessing(videoId);
             
-            if (transcript) {
-              console.log(`Got enhanced content for: ${videoItem.title}, length: ${transcript.length} chars`);
+            if (validationResult.isValid && validationResult.claudeOptimizedContent) {
+              console.log(`Got enhanced content for: ${videoItem.title}, length: ${validationResult.claudeOptimizedContent.length} chars`);
               // Generate questions using AI with the enhanced content
               console.log(`Generating questions for: ${videoItem.title}`);
               generatedQuestions = await anthropicService.generateQuestions(
                 videoItem.title,
-                transcript,
+                validationResult.claudeOptimizedContent,
                 getCategoryName(videoItem.category_id),
                 5 // Generate 5 questions per video
               );
               console.log(`Generated ${generatedQuestions.length} questions for: ${videoItem.title}`);
             } else {
-              console.log(`Insufficient content for: ${videoItem.title} - skipping question generation`);
-              // Skip this video - insufficient content for quality questions
+              console.log(`Insufficient content for: ${videoItem.title} - skipping video entirely. Reason: ${validationResult.rejectionReason}`);
+              skippedVideos.push({ reason: validationResult.rejectionReason || 'No valid transcript', title: videoItem.title });
+              continue;
             }
 
+
+            // Only create video if questions were successfully generated
+            const videoData = insertVideoSchema.parse({
+              userId,
+              youtubeId: videoId,
+              title: videoItem.title || 'Educational Video',
+              channelName: videoItem.channel_name || 'Unknown Channel',
+              duration: videoItem.duration_seconds || 0,
+              thumbnail: videoItem.thumbnail_url || '',
+              transcript: validationResult.cleanTranscript || '',
+              category: getCategoryName(videoItem.category_id),
+            });
+
+            const video = await storage.createVideo(videoData);
+            console.log(`Created video record for: ${videoItem.title}`);
+            
             // Save questions to storage
-            if (generatedQuestions.length > 0) {
-              const questionsData = generatedQuestions.map(q => ({
-                id: nanoid(),
-                videoId: video.id,
-                question: q.question,
-                options: q.options,
-                correctAnswer: q.correctAnswer,
-                explanation: q.explanation,
-                difficulty: q.difficulty,
-              }));
+            const questionsData = generatedQuestions.map(q => ({
+              id: nanoid(),
+              videoId: video.id,
+              question: q.question,
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              difficulty: q.difficulty,
+            }));
 
-              await storage.createQuestions(questionsData);
-              console.log(`Saved ${questionsData.length} questions for: ${videoItem.title}`);
-            } else {
-              console.log(`No questions were generated for: ${videoItem.title}`);
-            }
-
-          } catch (transcriptError) {
-            console.error(`Error during question generation for ${videoItem.title}:`, transcriptError);
+            await storage.createQuestions(questionsData);
+            console.log(`Saved ${questionsData.length} questions for: ${videoItem.title}`);
+            
+            processedVideos.push({
+              ...video,
+              questionsGenerated: generatedQuestions.length,
+              hasTranscript: true
+            });
+            
+          } catch (error) {
+            console.error(`Error processing video ${videoItem.title}:`, error);
+            skippedVideos.push({ reason: 'Processing error', title: videoItem.title });
+            continue;
           }
-
-          processedVideos.push({
-            ...video,
-            questionsGenerated: generatedQuestions.length,
-            hasTranscript: !!transcript
-          });
 
         } catch (error) {
           console.error(`Error processing video ${videoItem.title}:`, error);
@@ -898,8 +904,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
           if (existingVideos.some(v => v.youtubeId === videoId)) continue;
 
           const videoInfo = await youtubeService.getVideoInfo(videoId);
-          const transcript = await youtubeService.getVideoTranscript(videoId);
+          const validationResult = await youtubeService.validateVideoForProcessing(videoId);
           
+          // Validate video passed validation and has content
+          if (!validationResult.isValid || !validationResult.claudeOptimizedContent) {
+            console.log(`Skipping video ${videoId}: ${validationResult.rejectionReason || 'No valid content'}`);
+            continue;
+          }
+
+          // Generate questions BEFORE saving video
+          const generatedQuestions = await anthropicService.generateQuestions(
+            videoInfo.title,
+            validationResult.claudeOptimizedContent,
+            videoInfo.channelTitle,
+            5
+          );
+
+          // Validate that exactly 5 questions were generated
+          if (!generatedQuestions || generatedQuestions.length !== 5) {
+            console.log(`Skipping video ${videoId}: Failed to generate exactly 5 questions. Generated: ${generatedQuestions?.length || 0}`);
+            continue;
+          }
+
+          // Only create video if questions were successfully generated
           const videoData = insertVideoSchema.parse({
             userId,
             youtubeId: videoId,
@@ -907,18 +934,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
             channelName: videoInfo.channelTitle,
             duration: youtubeService.parseDuration(videoInfo.duration),
             thumbnail: videoInfo.thumbnails.medium?.url,
-            transcript: transcript,
+            transcript: validationResult.cleanTranscript || '',
             category: youtubeService.categorizeContent(videoInfo.title, videoInfo.description),
           });
 
           const video = await storage.createVideo(videoData);
-
-          const generatedQuestions = await anthropicService.generateQuestions(
-            videoInfo.title,
-            transcript,
-            videoInfo.channelTitle,
-            5
-          );
 
           const questionsData = generatedQuestions.map(q => ({
             id: nanoid(),

@@ -30,12 +30,14 @@ export class AnthropicService {
       : '';
 
     const prompt = `
-You are an expert educational content creator specializing in creating effective learning assessments. Your task is to generate high-quality multiple-choice questions that focus on the MOST IMPORTANT and ACTIONABLE insights from the video content.
+You are an expert educational content creator specializing in creating effective learning assessments. Your task is to generate EXACTLY ${count} high-quality multiple-choice questions that focus on the MOST IMPORTANT and ACTIONABLE insights from the video content.
 
 Video Title: ${title}
 Category: ${category}
 
 ${claudeOptimizedContent}${existingQuestionsText}
+
+CRITICAL REQUIREMENT: You MUST generate exactly ${count} questions. No more, no less. This is essential for the system to function properly.
 
 IMPORTANT GUIDELINES:
 
@@ -82,7 +84,10 @@ Before creating each question, ask yourself:
 3. Is this focused on what matters most from the video?
 4. Am I avoiding trivial details and focusing on significant learning?
 
-CRITICAL: You must respond with EXACTLY formatted JSON. Do not add extra spaces, quotes, or characters. Here is the exact format required:
+CRITICAL FORMATTING AND COUNT REQUIREMENTS:
+- You MUST generate exactly ${count} questions in the JSON array
+- Count your questions before responding to ensure you have exactly ${count}
+- You must respond with EXACTLY formatted JSON. Do not add extra spaces, quotes, or characters. Here is the exact format required:
 
 {
   "questions": [
@@ -104,7 +109,9 @@ Notes on JSON format:
 - Use straight quotes (") not curly quotes
 - Difficulty must be exactly "easy", "medium", or "hard"
 
-If you cannot generate high-quality questions that focus on core concepts and key insights, return exactly: {"questions": []}`;
+FINAL REMINDER: Your response must contain exactly ${count} questions in the "questions" array. Before submitting your response, count the questions to verify you have exactly ${count}.
+
+If you cannot generate ${count} high-quality questions that focus on core concepts and key insights, return exactly: {"questions": []}`;
 
     // Log prompt size for debugging
     const promptSize = prompt.length;
@@ -124,14 +131,14 @@ If you cannot generate high-quality questions that focus on core concepts and ke
           response = await this.client.messages.create({
             model: "claude-3-5-sonnet-20241022",
             max_tokens: 3000,
-            system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST respond with ONLY valid JSON in the exact format specified. If you cannot create high-quality questions that meet the requirements, return an empty questions array.",
+            system: "You are an expert educational content creator specializing in creating effective learning assessments. Focus ONLY on core concepts and key insights - avoid trivial details. You MUST generate the exact number of questions requested. You MUST respond with ONLY valid JSON in the exact format specified. Count your questions before responding to ensure the correct count.",
             messages: [
               {
                 role: "user",
                 content: prompt
               }
             ],
-            temperature: 0.7,
+            temperature: 0.4,
           });
           break; // Success, exit retry loop
         } catch (apiError: any) {
@@ -191,7 +198,12 @@ If you cannot generate high-quality questions that focus on core concepts and ke
           };
         }).filter((q: any) => q !== null); // Remove any invalid questions
 
-        console.log(`Successfully generated ${validatedQuestions.length} valid questions for: ${title}`);
+        console.log(`Successfully generated ${validatedQuestions.length} valid questions for: ${title} (requested: ${count})`);
+        
+        if (validatedQuestions.length !== count) {
+          console.warn(`Question count mismatch for "${title}": generated ${validatedQuestions.length}, requested ${count}`);
+        }
+        
         return validatedQuestions;
         
       } catch (parseError) {

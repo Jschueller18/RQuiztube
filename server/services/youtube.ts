@@ -316,72 +316,8 @@ This video provides educational content that should be analyzed for key concepts
     return null;
   }
 
-  async getVideoTranscript(videoId: string): Promise<string> {
-    try {
-      console.log(`Fetching real transcript for video: ${videoId}`);
-      
-      // Try to import youtube-transcript dynamically to handle potential ESM issues
-      let YoutubeTranscript;
-      try {
-        const module = await import('youtube-transcript');
-        YoutubeTranscript = module.YoutubeTranscript;
-      } catch (importError) {
-        console.error("Failed to import youtube-transcript:", importError);
-        throw new Error("Transcript library not available");
-      }
 
-      // Fetch actual transcript from YouTube
-      const transcriptArray = await YoutubeTranscript.fetchTranscript(videoId);
-      
-      if (!transcriptArray || transcriptArray.length === 0) {
-        throw new Error("No transcript data returned");
-      }
-
-      // Convert transcript array to clean text
-      const rawTranscript = transcriptArray
-        .map((item: any) => item.text)
-        .join(' ')
-        .replace(/\[.*?\]/g, '') // Remove [Music], [Applause] etc.
-        .replace(/\s+/g, ' ') // Normalize whitespace
-        .trim();
-
-      console.log(`Successfully fetched transcript for ${videoId}: ${rawTranscript.length} characters`);
-      
-      // Get video info to enhance the transcript with context
-      try {
-        const videoInfo = await this.getVideoInfo(videoId);
-        const enhancedContent = this.prepareContentForClaude(videoInfo, 'transcript', rawTranscript);
-        return enhancedContent;
-      } catch (contextError) {
-        console.log("Failed to get video context, using raw transcript");
-        return rawTranscript;
-      }
-
-    } catch (error) {
-      console.error(`Error fetching transcript for ${videoId}:`, error);
-      
-      // Fallback to enhanced video description when transcript is not available
-      try {
-        console.log(`Falling back to video description for ${videoId}`);
-        const videoInfo = await this.getVideoInfo(videoId);
-        const enhancedContent = this.prepareContentForClaude(videoInfo, 'description');
-        
-        if (enhancedContent && enhancedContent.length > 200) {
-          console.log(`Using enhanced video description: ${enhancedContent.length} characters`);
-          return enhancedContent;
-        }
-      } catch (descError) {
-        console.error("Failed to get video description fallback:", descError);
-      }
-
-      // If no good content is available, don't return poor quality content
-      // This will be handled gracefully by the question generation system
-      console.log(`No suitable content available for ${videoId} - will skip question generation`);
-      return null;
-    }
-  }
-
-  private prepareContentForClaude(videoInfo: any, contentType: 'transcript' | 'description', rawContent?: string): string {
+  private prepareContentForClaude(videoInfo: any, contentType: 'transcript' | 'description', rawContent?: string): string | null {
     // Clean and enhance content specifically for Claude to generate better questions
     
     const title = videoInfo.title || 'Unknown Title';
