@@ -160,14 +160,14 @@ export class YouTubeService {
       const execAsync = promisify(exec);
       
       // Check if required Python packages are available
-      const checkCommand = 'python3 -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"';
+      const checkCommand = './run_transcript.sh --check';
       
       const { stdout, stderr } = await execAsync(checkCommand, {
         timeout: 10000 // 10 second timeout
       });
       
-      if (stderr || stdout.trim() !== 'OK') {
-        throw new Error(`Python dependencies not available: ${stderr || 'Import failed'}`);
+      if (stderr || (stdout.trim() !== 'OK' && !stdout.includes('OK'))) {
+        throw new Error(`Python dependencies not available: ${stderr || stdout.trim() || 'Import failed'}`);
       }
       
       console.log('✅ Python dependencies verified');
@@ -188,8 +188,8 @@ export class YouTubeService {
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
       
-      // Execute the Python script (use system python3 in production)
-      const pythonCommand = `python3 transcript_extractor.py ${videoId}`;
+      // Execute the Python script using the wrapper script
+      const pythonCommand = `./run_transcript.sh ${videoId}`;
       
       const { stdout, stderr } = await execAsync(pythonCommand, {
         cwd: process.cwd(),
