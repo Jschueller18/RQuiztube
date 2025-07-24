@@ -2,13 +2,13 @@
 NODE_ENV = "production"
 
 [phases.setup]
-nixPkgs = ["nodejs-18_x", "npm-9_x", "python3", "python3Packages.pip"]
+nixPkgs = ["python3", "python3Packages.pip", "nodejs-18_x", "npm-9_x"]
 
 [phases.install]
-cmd = "npm ci && pip3 install -r requirements.txt"
+cmd = "npm ci"
 
-[phases.build] 
-cmd = "npm run build"
+[phases.build]
+cmds = ["pip3 install -r requirements.txt", "npm run build"]
 
 [start]
 cmd = "npm run start" 

@@ -118,25 +118,31 @@ export class YouTubeService {
   private async getRawTranscript(videoId: string): Promise<string | null> {
     console.log(`Fetching raw transcript for video: ${videoId}`);
     
+    const MIN_TRANSCRIPT_THRESHOLD = 500; // Minimum viable transcript length for quality quiz generation
+    
     // Try multiple transcript sources in order of preference
+    // NOTE: Removed getTranscriptFromVideoDescription to prevent fallback to low-quality content
     const methods = [
       () => this.getTranscriptFromPython(videoId), // Try Python methods first (most reliable)
       () => this.getTranscriptFromYouTubeAPI(videoId),
       () => this.getTranscriptFromYoutubeTranscript(videoId),
       () => this.getTranscriptFromYtdlCore(videoId),
-      () => this.getTranscriptFromDistube(videoId),
-      () => this.getTranscriptFromVideoDescription(videoId)
+      () => this.getTranscriptFromDistube(videoId)
+      // getTranscriptFromVideoDescription REMOVED - descriptions are insufficient for quality quiz generation
     ];
     
     for (let i = 0; i < methods.length; i++) {
       try {
         console.log(`Trying transcript method ${i + 1}/${methods.length}`);
         const result = await methods[i]();
-        if (result && result.length > 100) { // Require minimum content length
+        
+        if (result && result.length >= MIN_TRANSCRIPT_THRESHOLD) {
           console.log(`✅ Successfully fetched transcript using method ${i + 1}: ${result.length} characters`);
           return result;
         } else if (result) {
-          console.log(`⚠️  Method ${i + 1} returned content but too short: ${result.length} characters`);
+          console.log(`⚠️  Method ${i + 1} returned content but too short: ${result.length} characters (minimum ${MIN_TRANSCRIPT_THRESHOLD} required)`);
+          // Don't accept short transcripts - they won't generate quality quizzes
+          continue;
         }
       } catch (error) {
         console.log(`❌ Method ${i + 1} failed:`, error instanceof Error ? error.message : 'Unknown error');
@@ -147,9 +153,36 @@ export class YouTubeService {
     return null;
   }
 
+  private async checkPythonDependencies(): Promise<void> {
+    try {
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      
+      // Check if required Python packages are available
+      const checkCommand = 'python3 -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"';
+      
+      const { stdout, stderr } = await execAsync(checkCommand, {
+        timeout: 10000 // 10 second timeout
+      });
+      
+      if (stderr || stdout.trim() !== 'OK') {
+        throw new Error(`Python dependencies not available: ${stderr || 'Import failed'}`);
+      }
+      
+      console.log('✅ Python dependencies verified');
+      
+    } catch (error) {
+      throw new Error(`Python dependency check failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   private async getTranscriptFromPython(videoId: string): Promise<string | null> {
     try {
       console.log(`Using Python transcript extraction for ${videoId}`);
+      
+      // First, verify Python dependencies are available
+      await this.checkPythonDependencies();
       
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
@@ -184,8 +217,9 @@ export class YouTubeService {
         throw new Error(`Python extraction failed: ${result.error || 'Unknown error'}`);
       }
       
-      if (!result.transcript || result.transcript.length < 100) {
-        throw new Error(`Python transcript too short: ${result.transcript?.length || 0} characters`);
+      const MIN_TRANSCRIPT_THRESHOLD = 500; // Minimum viable transcript length
+      if (!result.transcript || result.transcript.length < MIN_TRANSCRIPT_THRESHOLD) {
+        throw new Error(`Python transcript too short: ${result.transcript?.length || 0} characters (minimum ${MIN_TRANSCRIPT_THRESHOLD} required)`);
       }
       
       console.log(`✅ Python extraction success (${result.method}): ${result.length} characters`);
@@ -510,13 +544,17 @@ export class YouTubeService {
   }
 
   /**
-   * Prepare optimized content specifically for Claude
+   * Prepare optimized content specifically for Claude with proper isolation
    */
   private prepareOptimizedContentForClaude(videoInfo: YouTubeVideoInfo, cleanTranscript: string): string | null {
     const title = videoInfo.title;
     const description = videoInfo.description || '';
     const channelName = videoInfo.channelTitle;
     const duration = this.parseDuration(videoInfo.duration);
+    const videoId = videoInfo.id;
+
+    // Generate a unique session ID for this video processing
+    const sessionId = `video_${videoId}_${Date.now()}`;
 
     // Clean description for context
     const cleanDescription = description
@@ -550,22 +588,34 @@ export class YouTubeService {
       }
     }
 
-    // Structure content for optimal Claude processing
-    const claudeContent = `EDUCATIONAL VIDEO ANALYSIS:
+    // Structure content for optimal Claude processing with clear isolation
+    const claudeContent = `=== EDUCATIONAL VIDEO PROCESSING SESSION ===
+SESSION_ID: ${sessionId}
+VIDEO_ID: ${videoId}
+PROCESSING_TIMESTAMP: ${new Date().toISOString()}
 
+⚠️ CONTEXT ISOLATION: This is a completely independent video analysis. Any previous video content should be ignored.
+
+=== VIDEO METADATA ===
 Title: "${title}"
 Creator: ${channelName}
 Duration: ${Math.floor(duration / 60)} minutes
 Category: Educational Content
 
-CORE LEARNING CONTENT:
+=== TRANSCRIPT CONTENT START ===
 ${optimizedTranscript}
+=== TRANSCRIPT CONTENT END ===
 
-CONTEXTUAL INFORMATION:
+=== ADDITIONAL CONTEXT ===
 ${cleanDescription ? cleanDescription.substring(0, 300) + (cleanDescription.length > 300 ? '...' : '') : 'No additional context provided.'}
 
-CONTENT FOCUS:
-This video provides educational content that should be analyzed for key concepts, actionable insights, and important learning objectives. Focus on the main ideas and practical knowledge that viewers can apply.`;
+=== PROCESSING INSTRUCTIONS ===
+- Analyze ONLY the transcript content above for this specific video (${videoId})
+- Generate questions based solely on the information contained within the transcript boundaries
+- Ignore any content from previous videos or sessions
+- Focus on key concepts, actionable insights, and learning objectives from this transcript only
+
+=== END SESSION ${sessionId} ===`;
 
     // Final validation
     if (claudeContent.length < 800) {
@@ -573,7 +623,7 @@ This video provides educational content that should be analyzed for key concepts
       return null;
     }
 
-    console.log(`Prepared optimized content for Claude: ${claudeContent.length} characters`);
+    console.log(`Prepared optimized content for Claude (Session: ${sessionId}): ${claudeContent.length} characters`);
     return claudeContent;
   }
 
