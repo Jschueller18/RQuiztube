@@ -43,3 +43,11 @@ jspm_packages/
 
 # Yarn Integrity file
 .yarn-integrity
+
+# Python virtual environment
+transcript_env/
+
+# Test files (not needed in production)
+test-*.js
+test_*.py
+simple_transcript_test.py

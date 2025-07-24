@@ -120,9 +120,12 @@ export class YouTubeService {
     
     // Try multiple transcript sources in order of preference
     const methods = [
+      () => this.getTranscriptFromPython(videoId), // Try Python methods first (most reliable)
+      () => this.getTranscriptFromYouTubeAPI(videoId),
       () => this.getTranscriptFromYoutubeTranscript(videoId),
       () => this.getTranscriptFromYtdlCore(videoId),
-      () => this.getTranscriptFromDistube(videoId)
+      () => this.getTranscriptFromDistube(videoId),
+      () => this.getTranscriptFromVideoDescription(videoId)
     ];
     
     for (let i = 0; i < methods.length; i++) {
@@ -142,6 +145,157 @@ export class YouTubeService {
     
     console.log(`❌ All transcript methods failed for video ${videoId}`);
     return null;
+  }
+
+  private async getTranscriptFromPython(videoId: string): Promise<string | null> {
+    try {
+      console.log(`Using Python transcript extraction for ${videoId}`);
+      
+      const { exec } = await import('child_process');
+      const { promisify } = await import('util');
+      const execAsync = promisify(exec);
+      
+      // Execute the Python script (use system python3 in production)
+      const pythonCommand = `python3 transcript_extractor.py ${videoId}`;
+      
+      const { stdout, stderr } = await execAsync(pythonCommand, {
+        cwd: process.cwd(),
+        timeout: 30000, // 30 second timeout
+        maxBuffer: 1024 * 1024 // 1MB buffer for large transcripts
+      });
+      
+      if (stderr) {
+        console.log(`Python script stderr: ${stderr}`);
+      }
+      
+      if (!stdout.trim()) {
+        throw new Error('Python script returned empty output');
+      }
+      
+      // Parse JSON response from Python script
+      let result;
+      try {
+        result = JSON.parse(stdout.trim());
+      } catch (parseError) {
+        throw new Error(`Failed to parse Python script output: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+      }
+      
+      if (!result.success) {
+        throw new Error(`Python extraction failed: ${result.error || 'Unknown error'}`);
+      }
+      
+      if (!result.transcript || result.transcript.length < 100) {
+        throw new Error(`Python transcript too short: ${result.transcript?.length || 0} characters`);
+      }
+      
+      console.log(`✅ Python extraction success (${result.method}): ${result.length} characters`);
+      return result.transcript;
+      
+    } catch (error) {
+      throw new Error(`Python transcript extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private async getTranscriptFromYouTubeAPI(videoId: string): Promise<string | null> {
+    if (!this.apiKey) {
+      throw new Error('YouTube API key not available for captions');
+    }
+
+    try {
+      console.log(`Using YouTube Data API v3 captions for ${videoId}`);
+      
+      // Step 1: List available captions
+      const captionsListUrl = `https://www.googleapis.com/youtube/v3/captions?videoId=${videoId}&key=${this.apiKey}&part=snippet`;
+      
+      const captionsResponse = await fetch(captionsListUrl);
+      if (!captionsResponse.ok) {
+        throw new Error(`Captions list API error: ${captionsResponse.status} ${captionsResponse.statusText}`);
+      }
+      
+      const captionsData = await captionsResponse.json() as any;
+      
+      if (!captionsData.items || captionsData.items.length === 0) {
+        throw new Error('No captions available via YouTube API');
+      }
+      
+      console.log(`Found ${captionsData.items.length} caption tracks via API`);
+      
+      // Step 2: Find the best caption track
+      let bestCaption = captionsData.items.find((caption: any) =>
+        caption.snippet.language === 'en' && caption.snippet.trackKind === 'standard'
+      ) || captionsData.items.find((caption: any) =>
+        caption.snippet.language === 'en'
+      ) || captionsData.items.find((caption: any) =>
+        caption.snippet.language.startsWith('en')
+      ) || captionsData.items[0];
+      
+      console.log(`Using caption: ${bestCaption.snippet.language} - ${bestCaption.snippet.name} (${bestCaption.snippet.trackKind})`);
+      
+      // Step 3: Download the caption content
+      const captionDownloadUrl = `https://www.googleapis.com/youtube/v3/captions/${bestCaption.id}?key=${this.apiKey}&tfmt=srt`;
+      
+      const captionResponse = await fetch(captionDownloadUrl);
+      if (!captionResponse.ok) {
+        if (captionResponse.status === 401) {
+          throw new Error('Caption download requires OAuth authentication (401 Unauthorized)');
+        }
+        throw new Error(`Caption download error: ${captionResponse.status} ${captionResponse.statusText}`);
+      }
+      
+      const captionText = await captionResponse.text();
+      
+      if (!captionText || captionText.length < 50) {
+        throw new Error(`Caption content too short or empty: ${captionText.length} chars`);
+      }
+      
+      // Step 4: Parse SRT format and extract text
+      const text = this.parseSRTContent(captionText);
+      
+      if (text.length < 100) {
+        throw new Error(`Parsed text too short: ${text.length} chars`);
+      }
+      
+      console.log(`YouTube API success: extracted ${text.length} characters`);
+      return text;
+      
+    } catch (error) {
+      throw new Error(`YouTube API captions failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  private parseSRTContent(srtContent: string): string {
+    // Parse SRT subtitle format
+    // SRT format: sequence number, timecode, text, blank line
+    const lines = srtContent.split('\n');
+    const textLines: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Skip sequence numbers (just numbers)
+      if (/^\d+$/.test(line)) {
+        continue;
+      }
+      
+      // Skip timecode lines (contain -->)
+      if (line.includes('-->')) {
+        continue;
+      }
+      
+      // Skip empty lines
+      if (line.length === 0) {
+        continue;
+      }
+      
+      // This should be subtitle text
+      textLines.push(line);
+    }
+    
+    return textLines
+      .join(' ')
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
   }
 
   private async getTranscriptFromYoutubeTranscript(videoId: string): Promise<string | null> {
@@ -477,6 +631,80 @@ This video provides educational content that should be analyzed for key concepts
     return null;
   }
 
+
+  private async getTranscriptFromVideoDescription(videoId: string): Promise<string | null> {
+    try {
+      console.log(`Attempting to extract useful content from video description for ${videoId}`);
+      
+      // Get video info to access description
+      const videoInfo = await this.getVideoInfo(videoId);
+      
+      if (!videoInfo.description || videoInfo.description.length < 200) {
+        throw new Error(`Description too short or empty: ${videoInfo.description?.length || 0} chars`);
+      }
+      
+      // Extract educational content from description
+      const description = videoInfo.description;
+      
+      // Look for structured content in description
+      const patterns = [
+        // Transcript sections
+        /(?:transcript|captions?|subtitles?):\s*(.+?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+        // Summary sections  
+        /(?:summary|overview|about):\s*(.+?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+        // Key points/topics
+        /(?:topics?|points?|covered|discusses?):\s*(.+?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+        // Learning objectives
+        /(?:learn|you.ll|objectives?):\s*(.+?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+        // Outline/agenda
+        /(?:outline|agenda|contents?):\s*(.+?)(?:\n\n|\n(?:[A-Z]|\d+\.)|$)/gis,
+      ];
+      
+      let extractedContent = '';
+      
+      for (const pattern of patterns) {
+        const matches = description.matchAll(pattern);
+        for (const match of matches) {
+          if (match[1]?.trim()) {
+            extractedContent += match[1].trim() + '\n\n';
+          }
+        }
+      }
+      
+      // If no structured content found, try to extract the first meaningful paragraphs
+      if (extractedContent.length < 100) {
+        const paragraphs = description
+          .split('\n\n')
+          .filter(p => p.trim().length > 50)
+          .filter(p => !p.includes('http'))
+          .filter(p => !p.toLowerCase().includes('subscribe'))
+          .filter(p => !p.toLowerCase().includes('follow'))
+          .filter(p => !p.toLowerCase().includes('like'))
+          .slice(0, 3); // Take first 3 meaningful paragraphs
+        
+        extractedContent = paragraphs.join('\n\n');
+      }
+      
+      // Clean up the extracted content
+      const cleanContent = extractedContent
+        .replace(/https?:\/\/[^\s]+/g, '') // Remove URLs
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .replace(/[^\w\s.,!?;:\-'"]/g, '') // Remove special characters
+        .trim();
+      
+      if (cleanContent.length < 100) {
+        throw new Error(`Extracted content too short: ${cleanContent.length} chars`);
+      }
+      
+      console.log(`Description extraction success: ${cleanContent.length} characters`);
+      console.log(`Sample: "${cleanContent.substring(0, 200)}..."`);
+      
+      return cleanContent;
+      
+    } catch (error) {
+      throw new Error(`Description extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
 
   private prepareContentForClaude(videoInfo: any, contentType: 'transcript' | 'description', rawContent?: string): string | null {
     // Clean and enhance content specifically for Claude to generate better questions
