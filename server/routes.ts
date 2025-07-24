@@ -142,7 +142,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         validationResult.videoInfo!.title,
         validationResult.claudeOptimizedContent!,
         validationResult.category!,
-        10
+        5
       );
 
       // Save questions
@@ -361,6 +361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const { videoId } = req.params;
       const { count = 5 } = req.body;
+      
+      // Ensure we always generate exactly 5 questions
+      const targetCount = 5;
 
       // Verify video belongs to user
       const video = await storage.getVideo(videoId);
@@ -372,12 +375,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingQuestions = await storage.getVideoQuestions(videoId);
       const existingQuestionTexts = existingQuestions.map(q => q.question.toLowerCase());
 
-      // Generate new questions
+      // Generate new questions (always generate exactly 5)
       const generatedQuestions = await anthropicService.generateQuestions(
         video.title,
         video.transcript || '',
         video.category || 'general',
-        count + 2, // Generate extra to account for potential duplicates
+        targetCount + 2, // Generate extra to account for potential duplicates
         existingQuestionTexts
       );
 
@@ -387,7 +390,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           existing.includes(q.question.toLowerCase().substring(0, 50)) ||
           q.question.toLowerCase().includes(existing.substring(0, 50))
         )
-      ).slice(0, count);
+      ).slice(0, targetCount);
 
       if (newQuestions.length === 0) {
         return res.status(400).json({ message: "No new questions could be generated" });
