@@ -25,8 +25,8 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             transcript_obj = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
             
             if transcript_obj:
-                # Convert FetchedTranscriptSnippet to dict list
-                transcript_list = transcript_obj.to_dict()
+                # Convert FetchedTranscript to raw data (list of dicts)
+                transcript_list = transcript_obj.to_raw_data()
                 
                 if transcript_list:
                     # Extract text from transcript list
@@ -52,8 +52,8 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             transcript_obj = api.fetch(video_id)
             
             if transcript_obj:
-                # Convert FetchedTranscriptSnippet to dict list
-                transcript_list = transcript_obj.to_dict()
+                # Convert FetchedTranscript to raw data (list of dicts)
+                transcript_list = transcript_obj.to_raw_data()
                 
                 if transcript_list:
                     transcript_text = ' '.join([item['text'] for item in transcript_list])
@@ -77,8 +77,8 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             transcript_obj = transcript.fetch()
             
             if transcript_obj:
-                # Convert FetchedTranscriptSnippet to dict list
-                transcript_list = transcript_obj.to_dict()
+                # Convert FetchedTranscript to raw data (list of dicts)
+                transcript_list = transcript_obj.to_raw_data()
                 
                 if transcript_list:
                     transcript_text = ' '.join([item['text'] for item in transcript_list])

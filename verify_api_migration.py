@@ -63,8 +63,8 @@ def test_new_api():
             transcript_obj = api.fetch(test_video_id, languages=['en'])
             
             if transcript_obj:
-                # Convert FetchedTranscriptSnippet to dict list
-                transcript_list = transcript_obj.to_dict()
+                # Convert FetchedTranscript to raw data (list of dicts)
+                transcript_list = transcript_obj.to_raw_data()
                 
                 if transcript_list and len(transcript_list) > 0:
                     sample_text = ' '.join([item['text'] for item in transcript_list[:3]])
@@ -72,7 +72,7 @@ def test_new_api():
                     print(f"✅ Total transcript items: {len(transcript_list)}")
                     return True
                 else:
-                    print("❌ No transcript data returned after .to_dict()")
+                    print("❌ No transcript data returned after .to_raw_data()")
                     return False
             else:
                 print("❌ No transcript object returned")
