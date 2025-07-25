@@ -10,10 +10,13 @@ cmd = "npm ci"
 [phases.build]
 cmds = [
   "chmod +x run_transcript.sh",
-  "chmod +x transcript_extractor.py",
-  "python3 -m venv transcript_venv",
-  "source transcript_venv/bin/activate && pip install --upgrade pip",
-  "source transcript_venv/bin/activate && pip install -r requirements.txt",
+  "chmod +x transcript_extractor.py", 
+  "chmod +x check_environment.sh",
+  "python3 -m venv transcript_venv --system-site-packages",
+  "transcript_venv/bin/pip install --upgrade pip",
+  "transcript_venv/bin/pip install youtube-transcript-api==1.2.1",
+  "transcript_venv/bin/pip install yt-dlp",
+  "./check_environment.sh",
   "npm run build"
 ]
 

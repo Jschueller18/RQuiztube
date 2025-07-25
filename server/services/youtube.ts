@@ -177,24 +177,30 @@ export class YouTubeService {
         console.log(`Script execution failed: ${scriptError instanceof Error ? scriptError.message : 'Unknown error'}, trying fallback...`);
       }
       
-      // Fallback: direct python check
+      // Fallback: direct python check with more debugging
       const fallbackCommands = [
+        'transcript_venv/bin/python -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"',
         'source transcript_venv/bin/activate 2>/dev/null && python -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"',
         'python3 -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"'
       ];
       
-      for (const fallbackCommand of fallbackCommands) {
+      for (let i = 0; i < fallbackCommands.length; i++) {
+        const fallbackCommand = fallbackCommands[i];
         try {
+          console.log(`Trying fallback check ${i + 1}: ${fallbackCommand}`);
           const { stdout, stderr } = await execAsync(fallbackCommand, {
             timeout: 10000
           });
           
+          console.log(`Fallback ${i + 1} stdout: "${stdout.trim()}"`);
+          console.log(`Fallback ${i + 1} stderr: "${stderr}"`);
+          
           if (!stderr && stdout.trim() === 'OK') {
-            console.log('✅ Python dependencies verified via fallback');
+            console.log(`✅ Python dependencies verified via fallback ${i + 1}`);
             return;
           }
         } catch (fallbackError) {
-          console.log(`Fallback check failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+          console.log(`Fallback check ${i + 1} failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
         }
       }
       
@@ -234,6 +240,7 @@ export class YouTubeService {
         
         // Fallback: try direct python execution
         const fallbackCommands = [
+          `transcript_venv/bin/python transcript_extractor.py ${videoId}`,
           `source transcript_venv/bin/activate 2>/dev/null && python transcript_extractor.py ${videoId}`,
           `python3 transcript_extractor.py ${videoId}`
         ];
