@@ -10,18 +10,19 @@ import argparse
 from typing import Optional, Dict, Any
 
 def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
-    """Extract transcript using youtube-transcript-api (most reliable method)"""
+    """Extract transcript using youtube-transcript-api v1.2.1 (correct modern API)"""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
         
-        print(f"🔄 Trying youtube-transcript-api for {video_id}", file=sys.stderr)
+        print(f"🔄 Trying youtube-transcript-api v1.2.1 for {video_id}", file=sys.stderr)
         
-        # Try multiple language preferences with current API
-        language_preferences = ['en', 'en-US', 'en-GB']
+        # Create API instance (modern API requires instance)
+        api = YouTubeTranscriptApi()
         
+        # Method 1: Try with language preferences using .fetch()
         try:
-            # Try with language preferences first
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=language_preferences)
+            print(f"   Trying .fetch() with language preferences", file=sys.stderr)
+            transcript_list = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
             
             if transcript_list:
                 # Extract text from transcript list
@@ -30,38 +31,55 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
                 # Clean and validate
                 clean_text = transcript_text.strip()
                 if len(clean_text) > 100:  # Minimum viable length
-                    print(f"✅ youtube-transcript-api success (preferred langs): {len(clean_text)} chars", file=sys.stderr)
+                    print(f"✅ youtube-transcript-api success (.fetch with langs): {len(clean_text)} chars", file=sys.stderr)
                     return clean_text
                         
         except Exception as fetch_error:
             error_msg = str(fetch_error)
-            print(f"   Language preferences failed: {error_msg}", file=sys.stderr)
+            print(f"   .fetch() with languages failed: {error_msg}", file=sys.stderr)
             
             # Check if it's an IP blocking issue
             if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
                 print(f"   🚫 Cloud IP blocked by YouTube - trying alternative approach", file=sys.stderr)
-                # Continue to fallback methods instead of failing immediately
-            
-        # Fallback: Try without language specification (auto-generated)
+        
+        # Method 2: Try .fetch() without language specification
         try:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+            print(f"   Trying .fetch() without language specification", file=sys.stderr)
+            transcript_list = api.fetch(video_id)
             
             if transcript_list:
                 transcript_text = ' '.join([item['text'] for item in transcript_list])
                 clean_text = transcript_text.strip()
                 if len(clean_text) > 100:
-                    print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
+                    print(f"✅ youtube-transcript-api success (.fetch auto): {len(clean_text)} chars", file=sys.stderr)
                     return clean_text
                         
         except Exception as auto_error:
             error_msg = str(auto_error)
-            print(f"   Auto-generated failed: {error_msg}", file=sys.stderr)
+            print(f"   .fetch() auto failed: {error_msg}", file=sys.stderr)
             
             if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
                 print(f"   🚫 All YouTube API methods blocked - falling back to yt-dlp", file=sys.stderr)
-                # Let the function raise and fall back to yt-dlp method
+        
+        # Method 3: Try using .list() and .find_transcript() approach
+        try:
+            print(f"   Trying .list() and .find_transcript() approach", file=sys.stderr)
+            transcripts = api.list(video_id)
+            transcript = transcripts.find_transcript(['en', 'en-US', 'en-GB'])
+            transcript_list = transcript.fetch()
             
-        raise Exception("YouTube API blocked or no usable transcript found")
+            if transcript_list:
+                transcript_text = ' '.join([item['text'] for item in transcript_list])
+                clean_text = transcript_text.strip()
+                if len(clean_text) > 100:
+                    print(f"✅ youtube-transcript-api success (.list/.find): {len(clean_text)} chars", file=sys.stderr)
+                    return clean_text
+                    
+        except Exception as list_error:
+            error_msg = str(list_error)
+            print(f"   .list()/.find_transcript() failed: {error_msg}", file=sys.stderr)
+            
+        raise Exception("All youtube-transcript-api methods failed")
         
     except ImportError:
         raise Exception("youtube-transcript-api not installed")
@@ -78,84 +96,110 @@ def extract_transcript_ytdlp(video_id: str) -> Optional[str]:
         
         print(f"🔄 Trying yt-dlp for {video_id}", file=sys.stderr)
         
-        # Configure yt-dlp with headers to avoid cloud IP detection
-        ydl_opts = {
-            'writesubtitles': True,
-            'writeautomaticsub': True,
-            'subtitleslangs': ['en', 'en-US', 'en-GB'],
-            'skip_download': True,
-            'quiet': True,
-            'no_warnings': True,
-            # Use headers to appear more like a regular browser
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Accept-Language': 'en-US,en;q=0.5',
-                'Accept-Encoding': 'gzip, deflate',
-                'Connection': 'keep-alive',
+        # Configure multiple yt-dlp strategies to avoid bot detection
+        strategies = [
+            # Strategy 1: Minimal approach with delays
+            {
+                'writesubtitles': True,
+                'writeautomaticsub': True,
+                'subtitleslangs': ['en', 'en-US', 'en-GB'],
+                'skip_download': True,
+                'quiet': True,
+                'no_warnings': True,
+                'sleep_interval': 5,
+                'max_sleep_interval': 15,
+                'retries': 2,
+                'outtmpl': '/tmp/%(id)s.%(ext)s',
             },
-            # Add some delay to avoid rate limiting
-            'sleep_interval': 1,
-            'max_sleep_interval': 5,
-            # Use a temporary directory that gets cleaned up
-            'outtmpl': '/tmp/%(id)s.%(ext)s',
-        }
+            # Strategy 2: Browser-like headers with longer delays
+            {
+                'writesubtitles': True,
+                'writeautomaticsub': True,
+                'subtitleslangs': ['en', 'en-US', 'en-GB'],
+                'skip_download': True,
+                'quiet': True,
+                'no_warnings': True,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Connection': 'keep-alive',
+                    'Cache-Control': 'max-age=0',
+                },
+                'sleep_interval': 10,
+                'max_sleep_interval': 30,
+                'retries': 1,
+                'outtmpl': '/tmp/%(id)s.%(ext)s',
+            }
+        ]
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        for i, ydl_opts in enumerate(strategies, 1):
+            print(f"   Trying yt-dlp strategy {i}/{len(strategies)}", file=sys.stderr)
+            
             try:
-                # Extract info and subtitles
-                info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
-                
-                # Look for subtitle content in the info
-                subtitles = info.get('subtitles', {}) or info.get('automatic_captions', {})
-                
-                if not subtitles:
-                    print(f"   No subtitles found in video info", file=sys.stderr)
-                    raise Exception("No subtitles available")
-                
-                # Try different language codes
-                for lang in ['en', 'en-US', 'en-GB', 'en-CA']:
-                    if lang in subtitles:
-                        subtitle_entries = subtitles[lang]
-                        print(f"   Found {len(subtitle_entries)} subtitle entries for {lang}", file=sys.stderr)
-                        
-                        # Find the best subtitle format (prefer vtt, then srt, then ttml)
-                        for entry in subtitle_entries:
-                            if entry.get('ext') in ['vtt', 'srt', 'ttml']:
-                                subtitle_url = entry.get('url')
-                                if subtitle_url:
-                                    # Download and parse the subtitle file
-                                    import urllib.request
-                                    try:
-                                        # Use custom headers for subtitle download too
-                                        req = urllib.request.Request(subtitle_url)
-                                        req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-                                        
-                                        with urllib.request.urlopen(req) as response:
-                                            subtitle_content = response.read().decode('utf-8')
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    # Extract info and subtitles
+                    info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+                    
+                    # Look for subtitle content in the info
+                    subtitles = info.get('subtitles', {}) or info.get('automatic_captions', {})
+                    
+                    if not subtitles:
+                        print(f"   Strategy {i}: No subtitles found in video info", file=sys.stderr)
+                        continue
+                    
+                    # Try different language codes
+                    for lang in ['en', 'en-US', 'en-GB', 'en-CA']:
+                        if lang in subtitles:
+                            subtitle_entries = subtitles[lang]
+                            print(f"   Strategy {i}: Found {len(subtitle_entries)} subtitle entries for {lang}", file=sys.stderr)
+                            
+                            # Find the best subtitle format (prefer vtt, then srt, then ttml)
+                            for entry in subtitle_entries:
+                                if entry.get('ext') in ['vtt', 'srt', 'ttml']:
+                                    subtitle_url = entry.get('url')
+                                    if subtitle_url:
+                                        # Download and parse the subtitle file
+                                        import urllib.request
+                                        try:
+                                            # Use custom headers for subtitle download too
+                                            req = urllib.request.Request(subtitle_url)
+                                            req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
                                             
-                                            # Parse based on format
-                                            if entry.get('ext') == 'vtt':
-                                                text = parse_vtt_content(subtitle_content)
-                                            elif entry.get('ext') == 'srt':
-                                                text = parse_srt_content(subtitle_content)
-                                            else:
-                                                text = parse_ttml_content(subtitle_content)
-                                            
-                                            if len(text) > 100:
-                                                print(f"✅ yt-dlp success ({lang}, {entry.get('ext')}): {len(text)} chars", file=sys.stderr)
-                                                return text
-                                    except Exception as download_error:
-                                        print(f"   Failed to download {lang} subtitle: {str(download_error)}", file=sys.stderr)
-                                        continue
+                                            with urllib.request.urlopen(req) as response:
+                                                subtitle_content = response.read().decode('utf-8')
+                                                
+                                                # Parse based on format
+                                                if entry.get('ext') == 'vtt':
+                                                    text = parse_vtt_content(subtitle_content)
+                                                elif entry.get('ext') == 'srt':
+                                                    text = parse_srt_content(subtitle_content)
+                                                else:
+                                                    text = parse_ttml_content(subtitle_content)
+                                                
+                                                if len(text) > 100:
+                                                    print(f"✅ yt-dlp success (strategy {i}, {lang}, {entry.get('ext')}): {len(text)} chars", file=sys.stderr)
+                                                    return text
+                                        except Exception as download_error:
+                                            print(f"   Strategy {i}: Failed to download {lang} subtitle: {str(download_error)}", file=sys.stderr)
+                                            continue
+                    
+                    print(f"   Strategy {i}: No usable subtitles found", file=sys.stderr)
+                    
+            except Exception as strategy_error:
+                error_msg = str(strategy_error)
+                print(f"   Strategy {i} failed: {error_msg}", file=sys.stderr)
                 
-                raise Exception("No usable subtitles found with yt-dlp")
+                if 'Sign in to confirm you\'re not a bot' in error_msg:
+                    print(f"   Strategy {i}: Bot detection triggered", file=sys.stderr)
+                elif 'Private video' in error_msg or 'Video unavailable' in error_msg:
+                    print(f"   Strategy {i}: Video access restricted", file=sys.stderr)
+                    break  # Don't try other strategies for restricted videos
                 
-            except Exception as extract_error:
-                error_msg = str(extract_error)
-                if 'Private video' in error_msg or 'Video unavailable' in error_msg:
-                    raise Exception(f"Video access restricted: {error_msg}")
-                raise Exception(f"yt-dlp extraction failed: {error_msg}")
+                continue
+        
+        raise Exception("All yt-dlp strategies failed")
         
     except ImportError:
         raise Exception("yt-dlp not installed")

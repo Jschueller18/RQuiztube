@@ -58,8 +58,9 @@ def test_new_api():
         print(f"🔄 Testing get_transcript with video: {test_video_id}")
         
         try:
-            # Test current API
-            transcript_list = YouTubeTranscriptApi.get_transcript(test_video_id, languages=['en'])
+            # Test current API v1.2.1
+            api = YouTubeTranscriptApi()
+            transcript_list = api.fetch(test_video_id, languages=['en'])
             
             if transcript_list and len(transcript_list) > 0:
                 sample_text = ' '.join([item['text'] for item in transcript_list[:3]])
