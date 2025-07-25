@@ -10,52 +10,32 @@ import argparse
 from typing import Optional, Dict, Any
 
 def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
-    """Extract transcript using youtube-transcript-api with IP rotation (most reliable method)"""
+    """Extract transcript using youtube-transcript-api (most reliable method)"""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        import requests
         
         print(f"🔄 Trying youtube-transcript-api for {video_id}", file=sys.stderr)
         
-        # Configure session with headers to avoid detection
-        session = requests.Session()
-        session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-        })
-        
-        # Create instance for new API with custom session
-        transcript_api = YouTubeTranscriptApi(session=session)
-        
-        # Try multiple language preferences with new API
+        # Try multiple language preferences with current API
         language_preferences = ['en', 'en-US', 'en-GB']
         
         try:
-            # New API: Use .fetch() with language preferences
-            transcript_response = transcript_api.fetch(video_id, languages=language_preferences)
+            # Try with language preferences first
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=language_preferences)
             
-            if transcript_response:
-                # Get raw data from the response
-                transcript_data = transcript_response.to_raw_data()
+            if transcript_list:
+                # Extract text from transcript list
+                transcript_text = ' '.join([item['text'] for item in transcript_list])
                 
-                if transcript_data:
-                    # Extract text from transcript data
-                    transcript_text = ' '.join([item['text'] for item in transcript_data])
-                    
-                    # Clean and validate
-                    clean_text = transcript_text.strip()
-                    if len(clean_text) > 100:  # Minimum viable length
-                        used_language = getattr(transcript_response, 'language_code', 'unknown')
-                        print(f"✅ youtube-transcript-api success ({used_language}): {len(clean_text)} chars", file=sys.stderr)
-                        return clean_text
+                # Clean and validate
+                clean_text = transcript_text.strip()
+                if len(clean_text) > 100:  # Minimum viable length
+                    print(f"✅ youtube-transcript-api success (preferred langs): {len(clean_text)} chars", file=sys.stderr)
+                    return clean_text
                         
         except Exception as fetch_error:
             error_msg = str(fetch_error)
-            print(f"   Fetch with language preferences failed: {error_msg}", file=sys.stderr)
+            print(f"   Language preferences failed: {error_msg}", file=sys.stderr)
             
             # Check if it's an IP blocking issue
             if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
@@ -64,21 +44,18 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             
         # Fallback: Try without language specification (auto-generated)
         try:
-            transcript_response = transcript_api.fetch(video_id)
+            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             
-            if transcript_response:
-                transcript_data = transcript_response.to_raw_data()
-                
-                if transcript_data:
-                    transcript_text = ' '.join([item['text'] for item in transcript_data])
-                    clean_text = transcript_text.strip()
-                    if len(clean_text) > 100:
-                        print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
-                        return clean_text
+            if transcript_list:
+                transcript_text = ' '.join([item['text'] for item in transcript_list])
+                clean_text = transcript_text.strip()
+                if len(clean_text) > 100:
+                    print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
+                    return clean_text
                         
         except Exception as auto_error:
             error_msg = str(auto_error)
-            print(f"   Auto-generated fetch failed: {error_msg}", file=sys.stderr)
+            print(f"   Auto-generated failed: {error_msg}", file=sys.stderr)
             
             if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
                 print(f"   🚫 All YouTube API methods blocked - falling back to yt-dlp", file=sys.stderr)
