@@ -13,7 +13,6 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
     """Extract transcript using youtube-transcript-api (most reliable method)"""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        from youtube_transcript_api.formatters import TextFormatter
         
         print(f"🔄 Trying youtube-transcript-api for {video_id}", file=sys.stderr)
         
@@ -22,15 +21,15 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
         
         for lang_code in language_codes:
             try:
+                # Correct API usage
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang_code])
                 
                 if transcript_list:
-                    # Format the transcript
-                    formatter = TextFormatter()
-                    text_formatted = formatter.format_transcript(transcript_list)
+                    # Extract text from transcript list
+                    transcript_text = ' '.join([item['text'] for item in transcript_list])
                     
                     # Clean and validate
-                    clean_text = text_formatted.strip()
+                    clean_text = transcript_text.strip()
                     if len(clean_text) > 100:  # Minimum viable length
                         print(f"✅ youtube-transcript-api success ({lang_code}): {len(clean_text)} chars", file=sys.stderr)
                         return clean_text
@@ -39,13 +38,12 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
                 print(f"   Language {lang_code} failed: {str(lang_error)}", file=sys.stderr)
                 continue
         
-        # Try auto-generated transcripts
+        # Try auto-generated transcripts (no language specified)
         try:
             transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
             if transcript_list:
-                formatter = TextFormatter()
-                text_formatted = formatter.format_transcript(transcript_list)
-                clean_text = text_formatted.strip()
+                transcript_text = ' '.join([item['text'] for item in transcript_list])
+                clean_text = transcript_text.strip()
                 if len(clean_text) > 100:
                     print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
                     return clean_text

@@ -159,48 +159,29 @@ export class YouTubeService {
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
       
-      // Try script first, then fallback to direct python check
-      let checkCommand = './run_transcript.sh --check';
-      
-      try {
-        const { stdout, stderr } = await execAsync(checkCommand, {
-          timeout: 10000 // 10 second timeout
-        });
-        
-        if (!stderr && (stdout.trim() === 'OK' || stdout.includes('OK'))) {
-          console.log('✅ Python dependencies verified via script');
-          return;
-        }
-        
-        console.log(`Script check failed: ${stderr || stdout.trim()}, trying fallback...`);
-      } catch (scriptError) {
-        console.log(`Script execution failed: ${scriptError instanceof Error ? scriptError.message : 'Unknown error'}, trying fallback...`);
-      }
-      
-      // Fallback: direct python check with more debugging
+      // Direct python check (skip problematic shell script)
       const fallbackCommands = [
         'transcript_venv/bin/python -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"',
-        'source transcript_venv/bin/activate 2>/dev/null && python -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"',
         'python3 -c "import youtube_transcript_api, yt_dlp; print(\'OK\')"'
       ];
       
       for (let i = 0; i < fallbackCommands.length; i++) {
         const fallbackCommand = fallbackCommands[i];
         try {
-          console.log(`Trying fallback check ${i + 1}: ${fallbackCommand}`);
+          console.log(`Trying dependency check ${i + 1}: ${fallbackCommand}`);
           const { stdout, stderr } = await execAsync(fallbackCommand, {
             timeout: 10000
           });
           
-          console.log(`Fallback ${i + 1} stdout: "${stdout.trim()}"`);
-          console.log(`Fallback ${i + 1} stderr: "${stderr}"`);
+          console.log(`Check ${i + 1} stdout: "${stdout.trim()}"`);
+          if (stderr) console.log(`Check ${i + 1} stderr: "${stderr}"`);
           
-          if (!stderr && stdout.trim() === 'OK') {
-            console.log(`✅ Python dependencies verified via fallback ${i + 1}`);
+          if (stdout.trim() === 'OK') {
+            console.log(`✅ Python dependencies verified via method ${i + 1}`);
             return;
           }
         } catch (fallbackError) {
-          console.log(`Fallback check ${i + 1} failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
+          console.log(`Dependency check ${i + 1} failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
         }
       }
       
@@ -222,50 +203,37 @@ export class YouTubeService {
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
       
-      // Try script first, then fallback to direct python execution
-      let pythonCommand = `./run_transcript.sh ${videoId}`;
-      let stdout: string;
-      let stderr: string;
+      // Direct python execution (skip problematic shell script)
+      const pythonCommands = [
+        `transcript_venv/bin/python transcript_extractor.py ${videoId}`,
+        `python3 transcript_extractor.py ${videoId}`
+      ];
       
-      try {
-        const result = await execAsync(pythonCommand, {
-          cwd: process.cwd(),
-          timeout: 30000, // 30 second timeout
-          maxBuffer: 1024 * 1024 // 1MB buffer for large transcripts
-        });
-        stdout = result.stdout;
-        stderr = result.stderr;
-      } catch (scriptError) {
-        console.log(`Script execution failed: ${scriptError instanceof Error ? scriptError.message : 'Unknown error'}, trying fallback...`);
-        
-        // Fallback: try direct python execution
-        const fallbackCommands = [
-          `transcript_venv/bin/python transcript_extractor.py ${videoId}`,
-          `source transcript_venv/bin/activate 2>/dev/null && python transcript_extractor.py ${videoId}`,
-          `python3 transcript_extractor.py ${videoId}`
-        ];
-        
-        let fallbackSuccess = false;
-        for (const fallbackCommand of fallbackCommands) {
-          try {
-            const fallbackResult = await execAsync(fallbackCommand, {
-              cwd: process.cwd(),
-              timeout: 30000,
-              maxBuffer: 1024 * 1024
-            });
-            stdout = fallbackResult.stdout;
-            stderr = fallbackResult.stderr;
-            fallbackSuccess = true;
-            console.log('✅ Fallback python execution succeeded');
-            break;
-          } catch (fallbackError) {
-            console.log(`Fallback command failed: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`);
-          }
+      let stdout: string = '';
+      let stderr: string = '';
+      let success = false;
+      
+      for (let i = 0; i < pythonCommands.length; i++) {
+        const pythonCommand = pythonCommands[i];
+        try {
+          console.log(`Trying python execution ${i + 1}: ${pythonCommand}`);
+          const result = await execAsync(pythonCommand, {
+            cwd: process.cwd(),
+            timeout: 30000, // 30 second timeout
+            maxBuffer: 1024 * 1024 // 1MB buffer for large transcripts
+          });
+          stdout = result.stdout;
+          stderr = result.stderr;
+          success = true;
+          console.log(`✅ Python execution ${i + 1} succeeded`);
+          break;
+        } catch (execError) {
+          console.log(`Python execution ${i + 1} failed: ${execError instanceof Error ? execError.message : 'Unknown error'}`);
         }
-        
-        if (!fallbackSuccess) {
-          throw new Error('Both script and fallback python execution failed');
-        }
+      }
+      
+      if (!success) {
+        throw new Error('All python execution attempts failed');
       }
       
       if (stderr) {
