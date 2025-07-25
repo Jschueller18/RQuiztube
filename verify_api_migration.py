@@ -60,15 +60,22 @@ def test_new_api():
         try:
             # Test current API v1.2.1
             api = YouTubeTranscriptApi()
-            transcript_list = api.fetch(test_video_id, languages=['en'])
+            transcript_obj = api.fetch(test_video_id, languages=['en'])
             
-            if transcript_list and len(transcript_list) > 0:
-                sample_text = ' '.join([item['text'] for item in transcript_list[:3]])
-                print(f"✅ API working! Sample: \"{sample_text}...\"")
-                print(f"✅ Total transcript items: {len(transcript_list)}")
-                return True
+            if transcript_obj:
+                # Convert FetchedTranscriptSnippet to dict list
+                transcript_list = transcript_obj.to_dict()
+                
+                if transcript_list and len(transcript_list) > 0:
+                    sample_text = ' '.join([item['text'] for item in transcript_list[:3]])
+                    print(f"✅ API working! Sample: \"{sample_text}...\"")
+                    print(f"✅ Total transcript items: {len(transcript_list)}")
+                    return True
+                else:
+                    print("❌ No transcript data returned after .to_dict()")
+                    return False
             else:
-                print("❌ No transcript data returned")
+                print("❌ No transcript object returned")
                 return False
                 
         except Exception as api_error:

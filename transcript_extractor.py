@@ -22,17 +22,21 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
         # Method 1: Try with language preferences using .fetch()
         try:
             print(f"   Trying .fetch() with language preferences", file=sys.stderr)
-            transcript_list = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
+            transcript_obj = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
             
-            if transcript_list:
-                # Extract text from transcript list
-                transcript_text = ' '.join([item['text'] for item in transcript_list])
+            if transcript_obj:
+                # Convert FetchedTranscriptSnippet to dict list
+                transcript_list = transcript_obj.to_dict()
                 
-                # Clean and validate
-                clean_text = transcript_text.strip()
-                if len(clean_text) > 100:  # Minimum viable length
-                    print(f"✅ youtube-transcript-api success (.fetch with langs): {len(clean_text)} chars", file=sys.stderr)
-                    return clean_text
+                if transcript_list:
+                    # Extract text from transcript list
+                    transcript_text = ' '.join([item['text'] for item in transcript_list])
+                    
+                    # Clean and validate
+                    clean_text = transcript_text.strip()
+                    if len(clean_text) > 100:  # Minimum viable length
+                        print(f"✅ youtube-transcript-api success (.fetch with langs): {len(clean_text)} chars", file=sys.stderr)
+                        return clean_text
                         
         except Exception as fetch_error:
             error_msg = str(fetch_error)
@@ -45,14 +49,18 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
         # Method 2: Try .fetch() without language specification
         try:
             print(f"   Trying .fetch() without language specification", file=sys.stderr)
-            transcript_list = api.fetch(video_id)
+            transcript_obj = api.fetch(video_id)
             
-            if transcript_list:
-                transcript_text = ' '.join([item['text'] for item in transcript_list])
-                clean_text = transcript_text.strip()
-                if len(clean_text) > 100:
-                    print(f"✅ youtube-transcript-api success (.fetch auto): {len(clean_text)} chars", file=sys.stderr)
-                    return clean_text
+            if transcript_obj:
+                # Convert FetchedTranscriptSnippet to dict list
+                transcript_list = transcript_obj.to_dict()
+                
+                if transcript_list:
+                    transcript_text = ' '.join([item['text'] for item in transcript_list])
+                    clean_text = transcript_text.strip()
+                    if len(clean_text) > 100:
+                        print(f"✅ youtube-transcript-api success (.fetch auto): {len(clean_text)} chars", file=sys.stderr)
+                        return clean_text
                         
         except Exception as auto_error:
             error_msg = str(auto_error)
@@ -66,14 +74,18 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             print(f"   Trying .list() and .find_transcript() approach", file=sys.stderr)
             transcripts = api.list(video_id)
             transcript = transcripts.find_transcript(['en', 'en-US', 'en-GB'])
-            transcript_list = transcript.fetch()
+            transcript_obj = transcript.fetch()
             
-            if transcript_list:
-                transcript_text = ' '.join([item['text'] for item in transcript_list])
-                clean_text = transcript_text.strip()
-                if len(clean_text) > 100:
-                    print(f"✅ youtube-transcript-api success (.list/.find): {len(clean_text)} chars", file=sys.stderr)
-                    return clean_text
+            if transcript_obj:
+                # Convert FetchedTranscriptSnippet to dict list
+                transcript_list = transcript_obj.to_dict()
+                
+                if transcript_list:
+                    transcript_text = ' '.join([item['text'] for item in transcript_list])
+                    clean_text = transcript_text.strip()
+                    if len(clean_text) > 100:
+                        print(f"✅ youtube-transcript-api success (.list/.find): {len(clean_text)} chars", file=sys.stderr)
+                        return clean_text
                     
         except Exception as list_error:
             error_msg = str(list_error)
