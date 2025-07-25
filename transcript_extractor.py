@@ -16,39 +16,50 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
         
         print(f"🔄 Trying youtube-transcript-api for {video_id}", file=sys.stderr)
         
-        # Try multiple language preferences
-        language_codes = ['en', 'en-US', 'en-GB', 'en-CA', 'en-AU']
+        # Create instance for new API
+        transcript_api = YouTubeTranscriptApi()
         
-        for lang_code in language_codes:
-            try:
-                # Correct API usage
-                transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=[lang_code])
+        # Try multiple language preferences with new API
+        language_preferences = ['en', 'en-US', 'en-GB']
+        
+        try:
+            # New API: Use .fetch() with language preferences
+            transcript_response = transcript_api.fetch(video_id, languages=language_preferences)
+            
+            if transcript_response:
+                # Get raw data from the response
+                transcript_data = transcript_response.to_raw_data()
                 
-                if transcript_list:
-                    # Extract text from transcript list
-                    transcript_text = ' '.join([item['text'] for item in transcript_list])
+                if transcript_data:
+                    # Extract text from transcript data
+                    transcript_text = ' '.join([item['text'] for item in transcript_data])
                     
                     # Clean and validate
                     clean_text = transcript_text.strip()
                     if len(clean_text) > 100:  # Minimum viable length
-                        print(f"✅ youtube-transcript-api success ({lang_code}): {len(clean_text)} chars", file=sys.stderr)
+                        used_language = getattr(transcript_response, 'language_code', 'unknown')
+                        print(f"✅ youtube-transcript-api success ({used_language}): {len(clean_text)} chars", file=sys.stderr)
                         return clean_text
                         
-            except Exception as lang_error:
-                print(f"   Language {lang_code} failed: {str(lang_error)}", file=sys.stderr)
-                continue
+        except Exception as fetch_error:
+            print(f"   Fetch with language preferences failed: {str(fetch_error)}", file=sys.stderr)
         
-        # Try auto-generated transcripts (no language specified)
+        # Fallback: Try without language specification (auto-generated)
         try:
-            transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
-            if transcript_list:
-                transcript_text = ' '.join([item['text'] for item in transcript_list])
-                clean_text = transcript_text.strip()
-                if len(clean_text) > 100:
-                    print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
-                    return clean_text
+            transcript_response = transcript_api.fetch(video_id)
+            
+            if transcript_response:
+                transcript_data = transcript_response.to_raw_data()
+                
+                if transcript_data:
+                    transcript_text = ' '.join([item['text'] for item in transcript_data])
+                    clean_text = transcript_text.strip()
+                    if len(clean_text) > 100:
+                        print(f"✅ youtube-transcript-api success (auto): {len(clean_text)} chars", file=sys.stderr)
+                        return clean_text
+                        
         except Exception as auto_error:
-            print(f"   Auto-generated failed: {str(auto_error)}", file=sys.stderr)
+            print(f"   Auto-generated fetch failed: {str(auto_error)}", file=sys.stderr)
             
         raise Exception("No usable transcript found with youtube-transcript-api")
         

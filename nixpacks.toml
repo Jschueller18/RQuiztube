@@ -12,11 +12,13 @@ cmds = [
   "chmod +x run_transcript.sh",
   "chmod +x transcript_extractor.py", 
   "chmod +x check_environment.sh",
+  "chmod +x verify_api_migration.py",
   "python3 -m venv transcript_venv --system-site-packages",
   "transcript_venv/bin/pip install --upgrade pip",
   "transcript_venv/bin/pip install youtube-transcript-api==1.2.1",
   "transcript_venv/bin/pip install yt-dlp",
   "./check_environment.sh",
+  "transcript_venv/bin/python verify_api_migration.py",
   "npm run build"
 ]
 
