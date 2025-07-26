@@ -13,11 +13,23 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
     """Extract transcript using youtube-transcript-api v1.2.1 (correct modern API)"""
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
+        from youtube_transcript_api.proxies import WebshareProxyConfig
         
         print(f"🔄 Trying youtube-transcript-api v1.2.1 for {video_id}", file=sys.stderr)
         
-        # Create API instance (modern API requires instance)
-        api = YouTubeTranscriptApi()
+        # Create API instance with Webshare proxy to bypass IP blocking
+        try:
+            print(f"   Initializing with Webshare proxy", file=sys.stderr)
+            proxy_config = WebshareProxyConfig(
+                proxy_username="xfldwqba",
+                proxy_password="nnkuych9mi93",
+                filter_ip_locations=["us", "de"]  # US and Germany for low latency
+            )
+            api = YouTubeTranscriptApi(proxy_config=proxy_config)
+            print(f"   ✅ Webshare proxy configured successfully", file=sys.stderr)
+        except Exception as proxy_error:
+            print(f"   ⚠️ Proxy setup failed, falling back to direct connection: {str(proxy_error)}", file=sys.stderr)
+            api = YouTubeTranscriptApi()
         
         # Method 1: Try with language preferences using .fetch()
         try:

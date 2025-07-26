@@ -58,8 +58,20 @@ def test_new_api():
         print(f"🔄 Testing get_transcript with video: {test_video_id}")
         
         try:
-            # Test current API v1.2.1
-            api = YouTubeTranscriptApi()
+            # Test current API v1.2.1 with Webshare proxy
+            try:
+                from youtube_transcript_api.proxies import WebshareProxyConfig
+                proxy_config = WebshareProxyConfig(
+                    proxy_username="xfldwqba",
+                    proxy_password="nnkuych9mi93",
+                    filter_ip_locations=["us", "de"]
+                )
+                api = YouTubeTranscriptApi(proxy_config=proxy_config)
+                print("✅ Webshare proxy configured for testing")
+            except Exception as proxy_error:
+                print(f"⚠️ Proxy setup failed in test, using direct connection: {str(proxy_error)}")
+                api = YouTubeTranscriptApi()
+            
             transcript_obj = api.fetch(test_video_id, languages=['en'])
             
             if transcript_obj:
