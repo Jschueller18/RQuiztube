@@ -17,27 +17,70 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
         
         print(f"🔄 Trying youtube-transcript-api v1.2.1 for {video_id}", file=sys.stderr)
         
-        # Create API instance with Webshare proxy to bypass IP blocking
+        # Create API instance with Webshare proxy and bot evasion techniques
         try:
-            print(f"   Initializing with Webshare proxy", file=sys.stderr)
+            print(f"   Initializing with Webshare proxy and bot evasion", file=sys.stderr)
+            
+            # Add random delay to look more human
+            import time
+            import random
+            initial_delay = random.uniform(2.0, 8.0)  # 2-8 second random delay
+            print(f"   Adding human-like delay: {initial_delay:.1f}s", file=sys.stderr)
+            time.sleep(initial_delay)
+            
             proxy_config = WebshareProxyConfig(
                 proxy_username="xfldwqba",
                 proxy_password="nnkuych9mi93",
-                filter_ip_locations=["us", "de"]  # US and Germany for low latency
+                filter_ip_locations=["us", "gb", "ca", "au"]  # More diverse locations
             )
-            api = YouTubeTranscriptApi(proxy_config=proxy_config)
-            print(f"   ✅ Webshare proxy configured successfully", file=sys.stderr)
+            
+            # Initialize with additional bot evasion
+            api = YouTubeTranscriptApi(
+                proxy_config=proxy_config,
+                http_headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept-Encoding': 'gzip, deflate, br',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                    'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+                    'Sec-Ch-Ua-Mobile': '?0',
+                    'Sec-Ch-Ua-Platform': '"Windows"',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Sec-Fetch-User': '?1',
+                    'Upgrade-Insecure-Requests': '1'
+                }
+            )
+            print(f"   ✅ Webshare proxy with bot evasion configured", file=sys.stderr)
+            
         except Exception as proxy_error:
-            print(f"   ⚠️ Proxy setup failed, falling back to direct connection: {str(proxy_error)}", file=sys.stderr)
-            api = YouTubeTranscriptApi()
+            print(f"   ⚠️ Enhanced proxy setup failed, trying basic proxy: {str(proxy_error)}", file=sys.stderr)
+            try:
+                # Fallback to basic proxy without custom headers
+                proxy_config = WebshareProxyConfig(
+                    proxy_username="xfldwqba",
+                    proxy_password="nnkuych9mi93"
+                )
+                api = YouTubeTranscriptApi(proxy_config=proxy_config)
+                print(f"   ✅ Basic Webshare proxy configured", file=sys.stderr)
+            except Exception as basic_proxy_error:
+                print(f"   ⚠️ All proxy setup failed, using direct connection: {str(basic_proxy_error)}", file=sys.stderr)
+                api = YouTubeTranscriptApi()
         
         # Method 1: Try with language preferences using .fetch() with retry logic
         for attempt in range(3):  # 3 attempts with delays
             try:
                 if attempt > 0:
                     import time
-                    delay = (attempt * 10) + 5  # 5s, 15s, 25s delays
-                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/3", file=sys.stderr)
+                    import random
+                    # Much longer, randomized delays to avoid detection
+                    base_delay = (attempt * 20) + 10  # 10s, 30s, 50s base delays
+                    jitter = random.uniform(0.5, 1.5)  # Add 50%-150% randomization
+                    delay = int(base_delay * jitter)
+                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/3 (human-like delay)", file=sys.stderr)
                     time.sleep(delay)
                 
                 print(f"   Trying .fetch() with language preferences (attempt {attempt + 1}/3)", file=sys.stderr)
@@ -86,8 +129,12 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             try:
                 if attempt > 0:
                     import time
-                    delay = 15  # 15s delay for second method
-                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/2", file=sys.stderr)
+                    import random
+                    # Longer randomized delay for method 2
+                    base_delay = 25  # 25s base delay for second method
+                    jitter = random.uniform(0.8, 1.4)  # Add randomization
+                    delay = int(base_delay * jitter)
+                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/2 (extended human-like delay)", file=sys.stderr)
                     time.sleep(delay)
                 
                 print(f"   Trying .fetch() without language specification (attempt {attempt + 1}/2)", file=sys.stderr)
