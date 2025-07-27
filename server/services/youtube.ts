@@ -203,8 +203,10 @@ export class YouTubeService {
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
       
-      // Direct python execution (skip problematic shell script)
+      // Direct python execution with absolute paths for Railway deployment
+      const baseDir = process.cwd();
       const pythonCommands = [
+        `${baseDir}/transcript_venv/bin/python ${baseDir}/transcript_extractor.py ${videoId}`,
         `transcript_venv/bin/python transcript_extractor.py ${videoId}`,
         `python3 transcript_extractor.py ${videoId}`
       ];
