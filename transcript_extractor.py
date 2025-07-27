@@ -31,55 +31,96 @@ def extract_transcript_youtube_api(video_id: str) -> Optional[str]:
             print(f"   ⚠️ Proxy setup failed, falling back to direct connection: {str(proxy_error)}", file=sys.stderr)
             api = YouTubeTranscriptApi()
         
-        # Method 1: Try with language preferences using .fetch()
-        try:
-            print(f"   Trying .fetch() with language preferences", file=sys.stderr)
-            transcript_obj = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
-            
-            if transcript_obj:
-                # Convert FetchedTranscript to raw data (list of dicts)
-                transcript_list = transcript_obj.to_raw_data()
+        # Method 1: Try with language preferences using .fetch() with retry logic
+        for attempt in range(3):  # 3 attempts with delays
+            try:
+                if attempt > 0:
+                    import time
+                    delay = (attempt * 10) + 5  # 5s, 15s, 25s delays
+                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/3", file=sys.stderr)
+                    time.sleep(delay)
                 
-                if transcript_list:
-                    # Extract text from transcript list
-                    transcript_text = ' '.join([item['text'] for item in transcript_list])
+                print(f"   Trying .fetch() with language preferences (attempt {attempt + 1}/3)", file=sys.stderr)
+                transcript_obj = api.fetch(video_id, languages=['en', 'en-US', 'en-GB'])
+                
+                if transcript_obj:
+                    # Convert FetchedTranscript to raw data (list of dicts)
+                    transcript_list = transcript_obj.to_raw_data()
                     
-                    # Clean and validate
-                    clean_text = transcript_text.strip()
-                    if len(clean_text) > 100:  # Minimum viable length
-                        print(f"✅ youtube-transcript-api success (.fetch with langs): {len(clean_text)} chars", file=sys.stderr)
-                        return clean_text
+                    if transcript_list:
+                        # Extract text from transcript list
+                        transcript_text = ' '.join([item['text'] for item in transcript_list])
                         
-        except Exception as fetch_error:
-            error_msg = str(fetch_error)
-            print(f"   .fetch() with languages failed: {error_msg}", file=sys.stderr)
-            
-            # Check if it's an IP blocking issue
-            if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
-                print(f"   🚫 Cloud IP blocked by YouTube - trying alternative approach", file=sys.stderr)
-        
-        # Method 2: Try .fetch() without language specification
-        try:
-            print(f"   Trying .fetch() without language specification", file=sys.stderr)
-            transcript_obj = api.fetch(video_id)
-            
-            if transcript_obj:
-                # Convert FetchedTranscript to raw data (list of dicts)
-                transcript_list = transcript_obj.to_raw_data()
+                        # Clean and validate
+                        clean_text = transcript_text.strip()
+                        if len(clean_text) > 100:  # Minimum viable length
+                            print(f"✅ youtube-transcript-api success (.fetch with langs): {len(clean_text)} chars", file=sys.stderr)
+                            return clean_text
                 
-                if transcript_list:
-                    transcript_text = ' '.join([item['text'] for item in transcript_list])
-                    clean_text = transcript_text.strip()
-                    if len(clean_text) > 100:
-                        print(f"✅ youtube-transcript-api success (.fetch auto): {len(clean_text)} chars", file=sys.stderr)
-                        return clean_text
-                        
-        except Exception as auto_error:
-            error_msg = str(auto_error)
-            print(f"   .fetch() auto failed: {error_msg}", file=sys.stderr)
-            
-            if 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
-                print(f"   🚫 All YouTube API methods blocked - falling back to yt-dlp", file=sys.stderr)
+                # If we got here, transcript was empty but no error - try next attempt
+                print(f"   Attempt {attempt + 1}: Empty transcript returned", file=sys.stderr)
+                
+            except Exception as fetch_error:
+                error_msg = str(fetch_error)
+                print(f"   .fetch() attempt {attempt + 1} failed: {error_msg}", file=sys.stderr)
+                
+                # Check if it's rate limiting
+                if '429' in error_msg or 'too many' in error_msg.lower() or 'rate limit' in error_msg.lower():
+                    print(f"   🔄 Rate limited - will retry with longer delay", file=sys.stderr)
+                    if attempt < 2:  # Don't sleep on last attempt
+                        continue
+                # Check if it's an IP blocking issue
+                elif 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
+                    print(f"   🚫 Cloud IP blocked by YouTube - trying alternative approach", file=sys.stderr)
+                    break  # No point retrying IP blocks
+                else:
+                    # Other errors, try next attempt
+                    if attempt < 2:
+                        continue
+                
+                # Last attempt failed
+                break
+        
+        # Method 2: Try .fetch() without language specification with retry logic
+        for attempt in range(2):  # 2 attempts for this method
+            try:
+                if attempt > 0:
+                    import time
+                    delay = 15  # 15s delay for second method
+                    print(f"   Waiting {delay}s before retry attempt {attempt + 1}/2", file=sys.stderr)
+                    time.sleep(delay)
+                
+                print(f"   Trying .fetch() without language specification (attempt {attempt + 1}/2)", file=sys.stderr)
+                transcript_obj = api.fetch(video_id)
+                
+                if transcript_obj:
+                    # Convert FetchedTranscript to raw data (list of dicts)
+                    transcript_list = transcript_obj.to_raw_data()
+                    
+                    if transcript_list:
+                        transcript_text = ' '.join([item['text'] for item in transcript_list])
+                        clean_text = transcript_text.strip()
+                        if len(clean_text) > 100:
+                            print(f"✅ youtube-transcript-api success (.fetch auto): {len(clean_text)} chars", file=sys.stderr)
+                            return clean_text
+                
+                print(f"   Attempt {attempt + 1}: Empty transcript returned", file=sys.stderr)
+                
+            except Exception as auto_error:
+                error_msg = str(auto_error)
+                print(f"   .fetch() auto attempt {attempt + 1} failed: {error_msg}", file=sys.stderr)
+                
+                if '429' in error_msg or 'too many' in error_msg.lower() or 'rate limit' in error_msg.lower():
+                    print(f"   🔄 Rate limited - will retry with delay", file=sys.stderr)
+                    if attempt < 1:  # Don't sleep on last attempt
+                        continue
+                elif 'blocking requests from your IP' in error_msg or 'cloud provider' in error_msg:
+                    print(f"   🚫 All YouTube API methods blocked - falling back to yt-dlp", file=sys.stderr)
+                    break
+                else:
+                    if attempt < 1:
+                        continue
+                break
         
         # Method 3: Try using .list() and .find_transcript() approach
         try:
